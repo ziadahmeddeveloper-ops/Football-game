@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const leaderboard = [
     { rank: 1, name: "Pep Guardiola AI", score: 2890, matches: 142, wins: 120, win_rate: "84.5%", avatar: "https://ui-avatars.com/api/?name=Pep+Guardiola&background=0052FF&color=fff" },
