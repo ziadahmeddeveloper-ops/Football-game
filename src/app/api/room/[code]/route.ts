@@ -45,15 +45,22 @@ export async function POST(req: Request, props: { params: Promise<{ code: string
       }
       room = updateOnlineRoom(code, { availablePool: room.availablePool, host: room.host }) || room;
     } else if (action === 'join') {
-      if (!room.guest || room.guest.id === managerId) {
-        room.guest = {
-          id: managerId || 'guest_2',
-          name: managerName || 'لاعب 2 (أونلاين)',
-          isReady: false,
-          budget: room.budget,
-          squad: []
-        };
-        room = updateOnlineRoom(code, { guest: room.guest }) || room;
+      if (managerId === room.host.id) {
+        if (managerName) {
+          room.host.name = managerName;
+          room = updateOnlineRoom(code, { host: room.host }) || room;
+        }
+      } else {
+        if (!room.guest || room.guest.id === managerId) {
+          room.guest = {
+            id: managerId || 'guest_2',
+            name: managerName || 'لاعب 2 (أونلاين)',
+            isReady: room.guest?.id === managerId ? room.guest.isReady : false,
+            budget: room.budget,
+            squad: room.guest?.squad || []
+          };
+          room = updateOnlineRoom(code, { guest: room.guest }) || room;
+        }
       }
     } else if (action === 'ready') {
       if (room.guest && room.guest.id === managerId) {
@@ -64,11 +71,12 @@ export async function POST(req: Request, props: { params: Promise<{ code: string
         room = updateOnlineRoom(code, { host: room.host }) || room;
       }
     } else if (action === 'start_game') {
-      if (room.host.id === managerId || true) { // Host can trigger game start
-        room.status = 'drafting';
-        room.gameState.status = 'drafting';
-        room = updateOnlineRoom(code, { status: 'drafting', gameState: room.gameState }) || room;
+      if (pool && pool.length > 0) {
+        room.availablePool = pool;
       }
+      room.status = 'drafting';
+      room.gameState.status = 'drafting';
+      room = updateOnlineRoom(code, { status: 'drafting', gameState: room.gameState, availablePool: room.availablePool }) || room;
     } else if (action === 'bid') {
       if (bidAmount > room.gameState.current_bid) {
         room.gameState.current_bid = bidAmount;

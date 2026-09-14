@@ -1,4 +1,5 @@
-// Server-side memory store for synchronized real-time online multiplayer rooms
+import fs from 'fs';
+import path from 'path';
 
 export interface ManagerRoomState {
   id: string;
@@ -30,7 +31,37 @@ export interface OnlineRoom {
   lastUpdated: number;
 }
 
-const onlineRoomsStore: Map<string, OnlineRoom> = new Map();
+const CACHE_FILE = path.join(process.cwd(), 'rooms_cache.json');
+
+function loadRoomsFromDisk(): Map<string, OnlineRoom> {
+  const map = new Map<string, OnlineRoom>();
+  try {
+    if (fs.existsSync(CACHE_FILE)) {
+      const data = fs.readFileSync(CACHE_FILE, 'utf-8');
+      const obj = JSON.parse(data);
+      Object.keys(obj).forEach(key => {
+        map.set(key, obj[key]);
+      });
+    }
+  } catch (err) {
+    console.error('Error reading rooms cache file:', err);
+  }
+  return map;
+}
+
+function saveRoomsToDisk(roomsMap: Map<string, OnlineRoom>) {
+  try {
+    const obj: Record<string, OnlineRoom> = {};
+    roomsMap.forEach((val, key) => {
+      obj[key] = val;
+    });
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error writing rooms cache file:', err);
+  }
+}
+
+const onlineRoomsStore: Map<string, OnlineRoom> = loadRoomsFromDisk();
 
 export function getOrCreateOnlineRoom(
   code: string, 
@@ -42,8 +73,12 @@ export function getOrCreateOnlineRoom(
   hostId: string = 'host_1'
 ): OnlineRoom {
   const cleanCode = code.toUpperCase().trim();
-  const existing = onlineRoomsStore.get(cleanCode);
+  
+  // Reload from disk to ensure cross-process sync
+  const diskStore = loadRoomsFromDisk();
+  const existing = diskStore.get(cleanCode) || onlineRoomsStore.get(cleanCode);
   if (existing) {
+    onlineRoomsStore.set(cleanCode, existing);
     return existing;
   }
 
@@ -53,7 +88,7 @@ export function getOrCreateOnlineRoom(
     squadSize,
     diff,
     mode,
-    status: 'lobby', // Always start in lobby state!
+    status: 'lobby',
     host: { id: hostId, name: hostName, isReady: true, budget, squad: [] },
     guest: null,
     gameState: {
@@ -70,12 +105,14 @@ export function getOrCreateOnlineRoom(
   };
 
   onlineRoomsStore.set(cleanCode, newRoom);
+  saveRoomsToDisk(onlineRoomsStore);
   return newRoom;
 }
 
 export function updateOnlineRoom(code: string, updates: Partial<OnlineRoom>): OnlineRoom | null {
   const cleanCode = code.toUpperCase().trim();
-  const room = onlineRoomsStore.get(cleanCode);
+  const diskStore = loadRoomsFromDisk();
+  const room = diskStore.get(cleanCode) || onlineRoomsStore.get(cleanCode);
   if (!room) return null;
 
   const updated: OnlineRoom = {
@@ -85,6 +122,9 @@ export function updateOnlineRoom(code: string, updates: Partial<OnlineRoom>): On
   };
 
   onlineRoomsStore.set(cleanCode, updated);
+  diskStore.set(cleanCode, updated);
+  saveRoomsToDisk(diskStore);
   return updated;
 }
+
 
