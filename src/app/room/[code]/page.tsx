@@ -268,6 +268,22 @@ export default function RoomPage({ params, searchParams }: { params: any, search
   const [userProfile, setUserProfile] = useState<{ name: string; avatar: string; coins: number } | null>(null);
   const [connectedManagers, setConnectedManagers] = useState<Manager[]>([]);
   const [formation, setFormation] = useState<string>('4-3-3');
+
+  // Unique Online User Identifier per browser session
+  const [myUserId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      let uid = localStorage.getItem('fut_draft_user_id');
+      if (!uid) {
+        uid = 'user_' + Math.random().toString(36).substring(2, 9);
+        localStorage.setItem('fut_draft_user_id', uid);
+      }
+      return uid;
+    }
+    return 'user_host';
+  });
+
+  const [onlineRoom, setOnlineRoom] = useState<any>(null);
+  const [myIsReady, setMyIsReady] = useState<boolean>(false);
   
   const getInitialManagers = (): Manager[] => {
     if (modeParam === 'bot') {
@@ -277,8 +293,8 @@ export default function RoomPage({ params, searchParams }: { params: any, search
       ];
     } else if (modeParam === 'online_friend') {
       return [
-        { id: 'you', name: 'أنت (المستضيف)', budget: initialBudget, squad: [] },
-        { id: 'player2', name: 'لاعب 2 (أونلاين)', budget: initialBudget, squad: [] }
+        { id: myUserId, name: 'أنت (المستضيف)', budget: initialBudget, squad: [] },
+        { id: 'guest_2', name: 'لاعب 2 (أونلاين)', budget: initialBudget, squad: [] }
       ];
     }
     // Default: Local Friend (Pass & Play)
@@ -290,11 +306,95 @@ export default function RoomPage({ params, searchParams }: { params: any, search
 
   const [managers, setManagers] = useState<Manager[]>(getInitialManagers());
 
+  // REAL-TIME ONLINE FRIEND ROOM POLLING & SYNC
+  useEffect(() => {
+    if (modeParam !== 'online_friend') return;
+
+    const currentUserName = userProfile?.name || (typeof window !== 'undefined' ? localStorage.getItem('user_name') : null) || 'مدرب ' + myUserId.slice(-4);
+
+    // Register user entry in server room
+    fetch(`/api/room/${roomCode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'join', managerId: myUserId, managerName: currentUserName })
+    }).catch(console.error);
+
+    const interval = setInterval(() => {
+      fetch(`/api/room/${roomCode}?userId=${myUserId}&name=${encodeURIComponent(currentUserName)}`)
+        .then(res => res.json())
+        .then(roomData => {
+          if (!roomData || !roomData.code) return;
+          setOnlineRoom(roomData);
+
+          const isHost = roomData.host.id === myUserId;
+          const isGuest = roomData.guest && roomData.guest.id === myUserId;
+
+          if (isGuest) {
+            setMyIsReady(roomData.guest.isReady);
+          } else if (isHost) {
+            setMyIsReady(roomData.host.isReady);
+          }
+
+          if (roomData.guest) {
+            setIsPlayer2Joined(true);
+            setPlayer2Name(roomData.guest.name);
+          }
+
+          // Build dynamic manager list for lobby & draft
+          const hostManager: Manager = {
+            id: roomData.host.id,
+            name: roomData.host.id === myUserId ? 'أنت (المستضيف)' : roomData.host.name || 'المستضيف',
+            budget: initialBudget,
+            squad: []
+          };
+
+          const guestManager: Manager | null = roomData.guest ? {
+            id: roomData.guest.id,
+            name: roomData.guest.id === myUserId ? 'أنت (الضيف)' : roomData.guest.name || 'الضيف',
+            budget: initialBudget,
+            squad: []
+          } : null;
+
+          const updatedManagers = [hostManager];
+          if (guestManager) updatedManagers.push(guestManager);
+          setManagers(updatedManagers);
+
+          // If room status changed to drafting, start game locally
+          if (roomData.status === 'drafting' && roomState === 'waiting') {
+            if (roomData.availablePool && roomData.availablePool.length > 0) {
+              setAvailablePool(roomData.availablePool);
+            }
+            setRoomState('drafting');
+          }
+
+          // Live bid synchronization when drafting
+          if (roomState === 'drafting' && roomData.gameState) {
+            setGameState(prev => {
+              if (roomData.gameState.current_bid > prev.current_bid) {
+                return {
+                  ...prev,
+                  current_bid: roomData.gameState.current_bid,
+                  winning_manager_id: roomData.gameState.winning_manager_id,
+                  waiting_initial_bid: false,
+                  seconds_remaining: Math.max(prev.seconds_remaining, roomData.gameState.seconds_remaining || 5)
+                };
+              }
+              return prev;
+            });
+          }
+        })
+        .catch(console.error);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [modeParam, roomCode, myUserId, roomState]);
+
   useEffect(() => {
     if (initialBudget && managers[0]?.squad.length === 0) {
       setManagers(prev => prev.map(m => ({ ...m, budget: initialBudget })));
     }
   }, [initialBudget]);
+
 
   const [availablePool, setAvailablePool] = useState<Player[]>([]);
   const [roundIndex, setRoundIndex] = useState<number>(0);
@@ -523,6 +623,18 @@ export default function RoomPage({ params, searchParams }: { params: any, search
 
         const orderedPool = buildExcitingRoundPool(uniqueFormatted, numManagers, totalRounds);
 
+        if (modeParam === 'online_friend') {
+          fetch(`/api/room/${roomCode}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              action: 'start_game', 
+              managerId: myUserId,
+              pool: orderedPool 
+            })
+          }).catch(console.error);
+        }
+
         setAvailablePool(orderedPool);
         setRoomState('drafting');
         setGameState({
@@ -534,6 +646,7 @@ export default function RoomPage({ params, searchParams }: { params: any, search
           turn_manager_id: getNextTurnManager(0, activeManagers),
           broke_turn_manager_id: 'you'
         });
+
       })
       .catch(err => {
         console.error("Failed to fetch players", err);
@@ -1093,109 +1206,201 @@ export default function RoomPage({ params, searchParams }: { params: any, search
               </button>
             </div>
 
-            {/* DYNAMIC PLAYER SLOTS (SUPPORTING 2, 4, 8 PLAYERS) */}
-            <div className="flex justify-between items-center w-full mb-4 px-2 flex-wrap gap-2">
-              <span className="text-sm font-black text-white uppercase tracking-wider">
-                المدراء الفنيون في الغرفة ({managers.length}/{targetMaxPlayers})
-              </span>
-              <button
-                onClick={() => {
-                  const BOT_NAMES = [
-                    'Pep AI (Tactical)',
-                    'Ancelotti AI (Mastermind)',
-                    'Klopp AI (Gegenpress)',
-                    'Zidane AI (Legend)',
-                    'Mourinho AI (Special)',
-                    'Arteta AI (Process)',
-                    'Tuchel AI (System)',
-                    'Nagelsmann AI (Analyst)'
-                  ];
-                  const fullList: Manager[] = [
-                    { id: 'you', name: me.name || 'You', budget: initialBudget, squad: [] }
-                  ];
-                  for (let i = 1; i < targetMaxPlayers; i++) {
-                    fullList.push({
-                      id: `bot${i}`,
-                      name: BOT_NAMES[i - 1] || `Bot ${i} (AI)`,
-                      budget: initialBudget,
-                      squad: []
-                    });
-                  }
-                  setManagers(fullList);
-                }}
-                className="bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-300 text-xs font-black px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-md"
-              >
-                🤖 ملء باقي الشواغر بالبوتات ({targetMaxPlayers} لاعبين)
-              </button>
-            </div>
+            {/* ONLINE FRIEND LOBBY VIEW */}
+            {modeParam === 'online_friend' ? (
+              <div className="w-full mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full mb-6">
+                  {/* Host Card */}
+                  <div className="bg-black/60 border-2 border-[#FFD700] rounded-2xl p-5 flex flex-col items-center shadow-[0_0_20px_rgba(255,215,0,0.2)] relative">
+                    <div className="text-[10px] font-black text-[#FFD700] uppercase tracking-widest mb-2">
+                      المستضيف • Host 👑
+                    </div>
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#FFD700] to-amber-600 text-black flex items-center justify-center font-black text-xl mb-2 shadow-lg">
+                      {onlineRoom?.host?.name?.charAt(0).toUpperCase() || 'H'}
+                    </div>
+                    <span className="text-sm font-black text-white mb-2 truncate max-w-[180px]">
+                      {onlineRoom?.host?.name || 'المستضيف'}
+                    </span>
+                    <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-black px-3 py-1 rounded-full flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5" /> جاهز ✅
+                    </span>
+                  </div>
 
-            <div className={`grid grid-cols-1 ${targetMaxPlayers >= 8 ? 'sm:grid-cols-2 lg:grid-cols-4' : targetMaxPlayers >= 4 ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2'} gap-3 w-full mb-8 max-h-[50vh] overflow-y-auto p-1`}>
-              {Array.from({ length: targetMaxPlayers }).map((_, idx) => {
-                const manager = managers[idx];
-                const isHost = idx === 0;
-
-                return (
-                  <div 
-                    key={manager ? manager.id : `slot-${idx}`} 
-                    className={`bg-black/50 border-2 rounded-2xl p-4 flex flex-col items-center relative overflow-hidden transition ${manager ? (isHost ? 'border-[#FFD700] shadow-[0_0_20px_rgba(255,215,0,0.2)]' : 'border-[#00F0FF] shadow-[0_0_20px_rgba(0,240,255,0.2)]') : 'border-zinc-700 border-dashed opacity-60'}`}
-                  >
-                    <div className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${isHost ? 'text-[#FFD700]' : 'text-[#00F0FF]'}`}>
-                      {isHost ? 'Host • أنت' : manager ? `Slot ${idx + 1} • المنافس` : `Slot ${idx + 1} • شاغر`}
+                  {/* Guest Card */}
+                  <div className={`bg-black/60 border-2 rounded-2xl p-5 flex flex-col items-center relative transition ${onlineRoom?.guest ? (onlineRoom.guest.isReady ? 'border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.3)]' : 'border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.3)]') : 'border-zinc-700 border-dashed opacity-75'}`}>
+                    <div className="text-[10px] font-black text-[#00F0FF] uppercase tracking-widest mb-2">
+                      الضيف • Guest 🎮
                     </div>
 
-                    {manager ? (
+                    {onlineRoom?.guest ? (
                       <>
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-lg mb-1.5 shadow-md ${isHost ? 'bg-gradient-to-br from-[#FFD700] to-amber-600 text-black' : 'bg-gradient-to-br from-[#00F0FF] to-blue-600 text-black'}`}>
-                          {isHost ? 'YOU' : `P${idx + 1}`}
+                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#00F0FF] to-blue-600 text-black flex items-center justify-center font-black text-xl mb-2 shadow-lg">
+                          {onlineRoom.guest.name?.charAt(0).toUpperCase() || 'G'}
                         </div>
-                        <span className="text-xs font-black text-white mb-1.5 truncate w-full text-center">{manager.name}</span>
-                        <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                          <Check className="w-3 h-3" /> READY
+                        <span className="text-sm font-black text-white mb-2 truncate max-w-[180px]">
+                          {onlineRoom.guest.name}
                         </span>
+                        {onlineRoom.guest.isReady ? (
+                          <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-black px-3 py-1 rounded-full flex items-center gap-1 animate-pulse">
+                            <Check className="w-3.5 h-3.5" /> جاهز ومستعد ✅
+                          </span>
+                        ) : (
+                          <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-black px-3 py-1 rounded-full flex items-center gap-1">
+                            ⏳ في انتظار الجاهزية...
+                          </span>
+                        )}
                       </>
                     ) : (
                       <>
-                        <div className="w-12 h-12 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-500 font-bold text-base mb-1.5">
+                        <div className="w-14 h-14 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-500 text-2xl mb-2 animate-bounce">
                           ⏳
                         </div>
-                        <span className="text-[11px] font-bold text-zinc-400 mb-2">بانتظار لاعب...</span>
-                        <button 
-                          onClick={() => {
-                            const BOT_NAMES = [
-                              'Pep AI (Tactical)',
-                              'Ancelotti AI (Mastermind)',
-                              'Klopp AI (Gegenpress)',
-                              'Zidane AI (Legend)',
-                              'Mourinho AI (Special)',
-                              'Arteta AI (Process)',
-                              'Tuchel AI (System)',
-                              'Nagelsmann AI (Analyst)'
-                            ];
-                            const newBot = { id: `bot${managers.length}`, name: BOT_NAMES[managers.length - 1] || `Bot ${managers.length} (AI)`, budget: initialBudget, squad: [] };
-                            setManagers(prev => [...prev, newBot]);
-                          }}
-                          className="bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold py-1 px-3 rounded-lg border border-white/10 transition cursor-pointer"
-                        >
-                          + إضافة بوت 🤖
-                        </button>
+                        <span className="text-xs font-bold text-zinc-300 mb-1">في انتظار انضمام صديقك...</span>
+                        <span className="text-[10px] text-zinc-500 font-medium">ابعث له كود أو رابط الغرفة ليضغط انضمام!</span>
                       </>
                     )}
                   </div>
-                );
-              })}
-            </div>
+                </div>
 
-            {/* START MATCH BUTTON */}
-            <button 
-              disabled={managers.length < 2}
-              onClick={() => {
-                startPracticeDraft(managers);
-              }}
-              className={`w-full py-4 rounded-2xl font-black text-xl uppercase tracking-widest shadow-2xl transition flex items-center justify-center gap-2 ${managers.length >= 2 ? 'bg-gradient-to-r from-[#00F0FF] to-blue-600 text-black shadow-[0_0_30px_rgba(0,240,255,0.6)] hover:scale-[1.02] cursor-pointer' : 'bg-zinc-800 text-zinc-600 border border-zinc-700 cursor-not-allowed'}`}
-            >
-              <Play className="w-6 h-6 fill-current" />
-              {managers.length >= 2 ? `🚀 ابدأ مزاد المباراة الآن (${managers.length} مدربين)!` : 'بانتظار انضمام لاعبين للبدء...'}
-            </button>
+                {/* ACTION BUTTONS (GUEST vs HOST) */}
+                {onlineRoom?.guest?.id === myUserId ? (
+                  // Guest view: Ready Toggle Button
+                  <button 
+                    onClick={() => {
+                      const nextState = !myIsReady;
+                      setMyIsReady(nextState);
+                      fetch(`/api/room/${roomCode}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'ready', managerId: myUserId, isReady: nextState })
+                      }).catch(console.error);
+                    }}
+                    className={`w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest shadow-2xl transition flex items-center justify-center gap-2 cursor-pointer ${myIsReady ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-[0_0_25px_rgba(16,185,129,0.5)]' : 'bg-gradient-to-r from-amber-500 to-orange-600 text-black shadow-[0_0_25px_rgba(245,158,11,0.5)] hover:scale-[1.02]'}`}
+                  >
+                    {myIsReady ? '✅ أنت جاهز الآن! (اضغط لإلغاء الجاهزية)' : '✋ أنا مستعد! (اضغط للمواقفة والشروع باللعب)'}
+                  </button>
+                ) : (
+                  // Host view: Start Game Button (Enabled when Guest is ready)
+                  <button 
+                    disabled={!onlineRoom?.guest?.isReady}
+                    onClick={() => {
+                      startPracticeDraft(managers);
+                    }}
+                    className={`w-full py-4 rounded-2xl font-black text-xl uppercase tracking-widest shadow-2xl transition flex items-center justify-center gap-2 ${onlineRoom?.guest?.isReady ? 'bg-gradient-to-r from-[#00F0FF] to-blue-600 text-black shadow-[0_0_30px_rgba(0,240,255,0.6)] hover:scale-[1.02] cursor-pointer' : 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'}`}
+                  >
+                    <Play className="w-6 h-6 fill-current" />
+                    {onlineRoom?.guest?.isReady ? '🚀 ابدأ مزاد المباراة الآن!' : onlineRoom?.guest ? 'بانتظار صديقك يضغط "جاهز" للبدء...' : 'بانتظار انضمام صديقك للغرفة...'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* DYNAMIC PLAYER SLOTS FOR LOCAL/BOT MODES */}
+                <div className="flex justify-between items-center w-full mb-4 px-2 flex-wrap gap-2">
+                  <span className="text-sm font-black text-white uppercase tracking-wider">
+                    المدراء الفنيون في الغرفة ({managers.length}/{targetMaxPlayers})
+                  </span>
+                  <button
+                    onClick={() => {
+                      const BOT_NAMES = [
+                        'Pep AI (Tactical)',
+                        'Ancelotti AI (Mastermind)',
+                        'Klopp AI (Gegenpress)',
+                        'Zidane AI (Legend)',
+                        'Mourinho AI (Special)',
+                        'Arteta AI (Process)',
+                        'Tuchel AI (System)',
+                        'Nagelsmann AI (Analyst)'
+                      ];
+                      const fullList: Manager[] = [
+                        { id: 'you', name: me.name || 'You', budget: initialBudget, squad: [] }
+                      ];
+                      for (let i = 1; i < targetMaxPlayers; i++) {
+                        fullList.push({
+                          id: `bot${i}`,
+                          name: BOT_NAMES[i - 1] || `Bot ${i} (AI)`,
+                          budget: initialBudget,
+                          squad: []
+                        });
+                      }
+                      setManagers(fullList);
+                    }}
+                    className="bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-300 text-xs font-black px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-md"
+                  >
+                    🤖 ملء باقي الشواغر بالبوتات ({targetMaxPlayers} لاعبين)
+                  </button>
+                </div>
+
+                <div className={`grid grid-cols-1 ${targetMaxPlayers >= 8 ? 'sm:grid-cols-2 lg:grid-cols-4' : targetMaxPlayers >= 4 ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2'} gap-3 w-full mb-8 max-h-[50vh] overflow-y-auto p-1`}>
+                  {Array.from({ length: targetMaxPlayers }).map((_, idx) => {
+                    const manager = managers[idx];
+                    const isHost = idx === 0;
+
+                    return (
+                      <div 
+                        key={manager ? manager.id : `slot-${idx}`} 
+                        className={`bg-black/50 border-2 rounded-2xl p-4 flex flex-col items-center relative overflow-hidden transition ${manager ? (isHost ? 'border-[#FFD700] shadow-[0_0_20px_rgba(255,215,0,0.2)]' : 'border-[#00F0FF] shadow-[0_0_20px_rgba(0,240,255,0.2)]') : 'border-zinc-700 border-dashed opacity-60'}`}
+                      >
+                        <div className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${isHost ? 'text-[#FFD700]' : 'text-[#00F0FF]'}`}>
+                          {isHost ? 'Host • أنت' : manager ? `Slot ${idx + 1} • المنافس` : `Slot ${idx + 1} • شاغر`}
+                        </div>
+
+                        {manager ? (
+                          <>
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-lg mb-1.5 shadow-md ${isHost ? 'bg-gradient-to-br from-[#FFD700] to-amber-600 text-black' : 'bg-gradient-to-br from-[#00F0FF] to-blue-600 text-black'}`}>
+                              {isHost ? 'YOU' : `P${idx + 1}`}
+                            </div>
+                            <span className="text-xs font-black text-white mb-1.5 truncate w-full text-center">{manager.name}</span>
+                            <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                              <Check className="w-3 h-3" /> READY
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-12 h-12 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-500 font-bold text-base mb-1.5">
+                              ⏳
+                            </div>
+                            <span className="text-[11px] font-bold text-zinc-400 mb-2">بانتظار لاعب...</span>
+                            <button 
+                              onClick={() => {
+                                const BOT_NAMES = [
+                                  'Pep AI (Tactical)',
+                                  'Ancelotti AI (Mastermind)',
+                                  'Klopp AI (Gegenpress)',
+                                  'Zidane AI (Legend)',
+                                  'Mourinho AI (Special)',
+                                  'Arteta AI (Process)',
+                                  'Tuchel AI (System)',
+                                  'Nagelsmann AI (Analyst)'
+                                ];
+                                const newBot = { id: `bot${managers.length}`, name: BOT_NAMES[managers.length - 1] || `Bot ${managers.length} (AI)`, budget: initialBudget, squad: [] };
+                                setManagers(prev => [...prev, newBot]);
+                              }}
+                              className="bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold py-1 px-3 rounded-lg border border-white/10 transition cursor-pointer"
+                            >
+                              + إضافة بوت 🤖
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* START MATCH BUTTON */}
+                <button 
+                  disabled={managers.length < 2}
+                  onClick={() => {
+                    startPracticeDraft(managers);
+                  }}
+                  className={`w-full py-4 rounded-2xl font-black text-xl uppercase tracking-widest shadow-2xl transition flex items-center justify-center gap-2 ${managers.length >= 2 ? 'bg-gradient-to-r from-[#00F0FF] to-blue-600 text-black shadow-[0_0_30px_rgba(0,240,255,0.6)] hover:scale-[1.02] cursor-pointer' : 'bg-zinc-800 text-zinc-600 border border-zinc-700 cursor-not-allowed'}`}
+                >
+                  <Play className="w-6 h-6 fill-current" />
+                  {managers.length >= 2 ? `🚀 ابدأ مزاد المباراة الآن (${managers.length} مدربين)!` : 'بانتظار انضمام لاعبين للبدء...'}
+                </button>
+              </>
+            )}
+
 
           </motion.div>
         </div>

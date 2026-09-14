@@ -3,6 +3,7 @@
 export interface ManagerRoomState {
   id: string;
   name: string;
+  isReady: boolean;
   budget: number;
   squad: any[];
 }
@@ -13,7 +14,7 @@ export interface OnlineRoom {
   squadSize: number;
   diff: string;
   mode: string;
-  status: 'waiting' | 'drafting' | 'finished';
+  status: 'lobby' | 'drafting' | 'finished';
   host: ManagerRoomState;
   guest: ManagerRoomState | null;
   gameState: {
@@ -31,7 +32,15 @@ export interface OnlineRoom {
 
 const onlineRoomsStore: Map<string, OnlineRoom> = new Map();
 
-export function getOrCreateOnlineRoom(code: string, budget: number = 100000000, squadSize: number = 11, diff: string = 'medium', mode: string = 'online_friend', hostName: string = 'المستضيف', hostId: string = 'host_1'): OnlineRoom {
+export function getOrCreateOnlineRoom(
+  code: string, 
+  budget: number = 100000000, 
+  squadSize: number = 11, 
+  diff: string = 'medium', 
+  mode: string = 'online_friend', 
+  hostName: string = 'المستضيف', 
+  hostId: string = 'host_1'
+): OnlineRoom {
   const cleanCode = code.toUpperCase().trim();
   const existing = onlineRoomsStore.get(cleanCode);
   if (existing) {
@@ -44,8 +53,8 @@ export function getOrCreateOnlineRoom(code: string, budget: number = 100000000, 
     squadSize,
     diff,
     mode,
-    status: 'waiting',
-    host: { id: hostId, name: hostName, budget, squad: [] },
+    status: 'lobby', // Always start in lobby state!
+    host: { id: hostId, name: hostName, isReady: true, budget, squad: [] },
     guest: null,
     gameState: {
       status: 'drafting',
@@ -78,3 +87,4 @@ export function updateOnlineRoom(code: string, updates: Partial<OnlineRoom>): On
   onlineRoomsStore.set(cleanCode, updated);
   return updated;
 }
+

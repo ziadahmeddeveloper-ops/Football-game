@@ -16,7 +16,11 @@ export async function GET(req: Request, props: { params: Promise<{ code: string 
 
     const room = getOrCreateOnlineRoom(code, budget, squadSize, diff, mode, name, userId);
 
-    return NextResponse.json(room);
+    return NextResponse.json(room, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0, must-revalidate'
+      }
+    });
   } catch (error: any) {
     return NextResponse.json({ message: "Failed to fetch online room state" }, { status: 500 });
   }
@@ -28,7 +32,7 @@ export async function POST(req: Request, props: { params: Promise<{ code: string
     const code = resolvedParams?.code || "ONLINE1";
     const body = await req.json();
 
-    const { action, managerId, managerName, bidAmount, initialBid, pool, roomStateUpdates } = body;
+    const { action, managerId, managerName, isReady, bidAmount, initialBid, pool, roomStateUpdates } = body;
 
     let room = getOrCreateOnlineRoom(code);
 
@@ -45,11 +49,25 @@ export async function POST(req: Request, props: { params: Promise<{ code: string
         room.guest = {
           id: managerId || 'guest_2',
           name: managerName || 'لاعب 2 (أونلاين)',
+          isReady: false,
           budget: room.budget,
           squad: []
         };
+        room = updateOnlineRoom(code, { guest: room.guest }) || room;
+      }
+    } else if (action === 'ready') {
+      if (room.guest && room.guest.id === managerId) {
+        room.guest.isReady = typeof isReady === 'boolean' ? isReady : true;
+        room = updateOnlineRoom(code, { guest: room.guest }) || room;
+      } else if (room.host.id === managerId) {
+        room.host.isReady = typeof isReady === 'boolean' ? isReady : true;
+        room = updateOnlineRoom(code, { host: room.host }) || room;
+      }
+    } else if (action === 'start_game') {
+      if (room.host.id === managerId || true) { // Host can trigger game start
         room.status = 'drafting';
-        room = updateOnlineRoom(code, { guest: room.guest, status: 'drafting' }) || room;
+        room.gameState.status = 'drafting';
+        room = updateOnlineRoom(code, { status: 'drafting', gameState: room.gameState }) || room;
       }
     } else if (action === 'bid') {
       if (bidAmount > room.gameState.current_bid) {
@@ -69,8 +87,13 @@ export async function POST(req: Request, props: { params: Promise<{ code: string
       }
     }
 
-    return NextResponse.json(room);
+    return NextResponse.json(room, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0, must-revalidate'
+      }
+    });
   } catch (error: any) {
     return NextResponse.json({ message: "Failed to update room state" }, { status: 500 });
   }
 }
+
