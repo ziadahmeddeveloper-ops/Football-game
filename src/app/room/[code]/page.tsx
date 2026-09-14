@@ -340,51 +340,71 @@ export default function RoomPage({ params, searchParams }: { params: any, search
             setPlayer2Name(roomData.guest.name);
           }
 
-          // Build dynamic manager list for lobby & draft
+          // Build EXACT 2-player manager list for online friend mode (Host & Guest)
+          const hostId = roomData.host.id;
+          const hostName = hostId === myUserId ? `${roomData.host.name || 'المستضيف'} (أنت)` : (roomData.host.name || 'المستضيف');
+
           const hostManager: Manager = {
-            id: roomData.host.id,
-            name: roomData.host.id === myUserId ? 'أنت (المستضيف)' : roomData.host.name || 'المستضيف',
-            budget: initialBudget,
-            squad: []
+            id: hostId,
+            name: hostName,
+            budget: roomData.host.budget ?? initialBudget,
+            squad: roomData.host.squad || []
           };
 
-          const guestManager: Manager | null = roomData.guest ? {
-            id: roomData.guest.id,
-            name: roomData.guest.id === myUserId ? 'أنت (الضيف)' : roomData.guest.name || 'الضيف',
-            budget: initialBudget,
-            squad: []
-          } : null;
+          const updatedManagers: Manager[] = [hostManager];
 
-          const updatedManagers = [hostManager];
-          if (guestManager) updatedManagers.push(guestManager);
+          if (roomData.guest) {
+            const guestId = roomData.guest.id;
+            const guestName = guestId === myUserId ? `${roomData.guest.name || 'الضيف'} (أنت)` : (roomData.guest.name || 'الضيف');
+
+            const guestManager: Manager = {
+              id: guestId,
+              name: guestName,
+              budget: roomData.guest.budget ?? initialBudget,
+              squad: roomData.guest.squad || []
+            };
+            updatedManagers.push(guestManager);
+          } else {
+            updatedManagers.push({
+              id: 'guest_waiting',
+              name: 'في انتظار انضمام صديقك...',
+              budget: initialBudget,
+              squad: []
+            });
+          }
+
           setManagers(updatedManagers);
+
+          // Sync shared player pool if provided by server
+          if (roomData.availablePool && roomData.availablePool.length > 0) {
+            setAvailablePool(roomData.availablePool);
+          }
 
           // If room status changed to drafting, start game locally
           if (roomData.status === 'drafting' && roomState === 'waiting') {
-            if (roomData.availablePool && roomData.availablePool.length > 0) {
-              setAvailablePool(roomData.availablePool);
-            }
             setRoomState('drafting');
           }
 
-          // Live bid synchronization when drafting
+          // Sync round index & live bid state when drafting
+          if (roomData.roundIndex !== undefined) {
+            setRoundIndex(roomData.roundIndex);
+          }
+
           if (roomState === 'drafting' && roomData.gameState) {
             setGameState(prev => {
-              if (roomData.gameState.current_bid > prev.current_bid) {
-                return {
-                  ...prev,
-                  current_bid: roomData.gameState.current_bid,
-                  winning_manager_id: roomData.gameState.winning_manager_id,
-                  waiting_initial_bid: false,
-                  seconds_remaining: Math.max(prev.seconds_remaining, roomData.gameState.seconds_remaining || 5)
-                };
-              }
-              return prev;
+              // Update bid, winning manager, and timer directly from server
+              return {
+                ...prev,
+                current_bid: roomData.gameState.current_bid ?? prev.current_bid,
+                winning_manager_id: roomData.gameState.winning_manager_id ?? prev.winning_manager_id,
+                waiting_initial_bid: roomData.gameState.waiting_initial_bid ?? prev.waiting_initial_bid,
+                seconds_remaining: roomData.gameState.seconds_remaining ?? prev.seconds_remaining
+              };
             });
           }
         })
         .catch(console.error);
-    }, 1000);
+    }, 500);
 
     return () => clearInterval(interval);
   }, [modeParam, roomCode, myUserId, roomState]);
@@ -653,12 +673,12 @@ export default function RoomPage({ params, searchParams }: { params: any, search
       });
   };
 
-  // Auto-fetch player pool if entering drafting state with empty pool
+  // Auto-fetch player pool if entering drafting state with empty pool (Local/Bot modes only)
   useEffect(() => {
-    if (roomState === 'drafting' && availablePool.length === 0) {
+    if (roomState === 'drafting' && availablePool.length === 0 && modeParam !== 'online_friend') {
       startPracticeDraft();
     }
-  }, [roomState, availablePool.length]);
+  }, [roomState, availablePool.length, modeParam]);
 
 
   const [revealData, setRevealData] = useState<{ results: { managerId: string, managerName: string, player: Player, isWinner: boolean }[] } | null>(null);
@@ -667,6 +687,42 @@ export default function RoomPage({ params, searchParams }: { params: any, search
   useEffect(() => {
     if (roomState !== 'drafting' || isDraftFinished || gameState.status !== 'drafting' || showMysteryPackUI) return;
 
+    // In Online Friend Mode, Host handles timer and Server syncs state to Guest
+    if (modeParam === 'online_friend') {
+      // If guest, do not run local timer loop
+      if (onlineRoom?.host?.id !== myUserId) return;
+
+      const interval = setInterval(() => {
+        setGameState(prev => {
+          if (prev.seconds_remaining <= 1) {
+            clearInterval(interval);
+            setTimeout(() => handleRoundEnd(prev), 0);
+            return { ...prev, seconds_remaining: 0 };
+          }
+          const nextSec = prev.seconds_remaining - 1;
+          // Sync host timer to server every second
+          fetch(`/api/room/${roomCode}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'sync',
+              roomStateUpdates: {
+                gameState: {
+                  ...prev,
+                  seconds_remaining: nextSec
+                }
+              }
+            })
+          }).catch(console.error);
+
+          return { ...prev, seconds_remaining: nextSec };
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+
+    // Bot / Local Friend Timer & Bot Bidding Logic
     if (gameState.waiting_initial_bid) {
       if (gameState.turn_manager_id !== 'you' && !isOpponentBankrupt) {
         const timer = setTimeout(() => {
@@ -724,7 +780,6 @@ export default function RoomPage({ params, searchParams }: { params: any, search
           const cat = activePlayer ? getCat(activePlayer.position) : 'MID';
           const eligibleBots = managers.filter(m => {
             if (m.id === 'you' || m.id === prev.winning_manager_id || m.budget <= prev.current_bid) return false;
-            // Check position count: don't over-bid if bot already has 2+ GKs or 5+ ATTs
             const posCount = m.squad.filter(p => getCat(p.position) === cat).length;
             if (cat === 'GK' && posCount >= 2) return false;
             if (cat === 'ATT' && posCount >= 5) return false;
@@ -755,7 +810,7 @@ export default function RoomPage({ params, searchParams }: { params: any, search
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [roomState, gameState.status, gameState.waiting_initial_bid, gameState.turn_manager_id, isDraftFinished, activePlayer, managers, showMysteryPackUI]);
+  }, [roomState, gameState.status, gameState.waiting_initial_bid, gameState.turn_manager_id, isDraftFinished, activePlayer, managers, showMysteryPackUI, modeParam, myUserId, onlineRoom?.host?.id]);
 
   const handleRoundEnd = (currentState: typeof gameState) => {
     if (!activePlayer) return;
