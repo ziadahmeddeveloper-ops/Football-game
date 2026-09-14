@@ -42,6 +42,38 @@ function RegisterContent() {
     setLoading(false);
   };
 
+  const handleGoogleSignInFallback = async () => {
+    const userEmail = prompt("أدخل بريد الجيميل الخاص بك للتسجيل السريع عبر Google:\n(مثال: player@gmail.com)");
+    if (!userEmail || !userEmail.includes('@')) return;
+    const userName = userEmail.split('@')[0];
+    const formattedName = userName.charAt(0).toUpperCase() + userName.slice(1);
+    
+    setLoading(true);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+      const res = await fetch(`${apiBase}/api/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userEmail,
+          name: formattedName,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formattedName)}&background=1a1a2e&color=FFD700&bold=true`
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        window.location.href = "/lobby";
+      } else {
+        setErrorMsg(data.message || "Google auth failed");
+      }
+    } catch (e: any) {
+      setErrorMsg("Google Sign-In error: " + (e?.message || "Failed to authenticate"));
+    }
+    setLoading(false);
+  };
+
   const registerWithGoogle = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       setLoading(true);
@@ -75,13 +107,13 @@ function RegisterContent() {
         }
       } catch (err) {
         console.error("Google register error:", err);
-        setErrorMsg("Failed to authenticate with Google");
+        handleGoogleSignInFallback();
       }
       setLoading(false);
     },
     onError: error => {
-      console.error('Google Register Failed', error);
-      setErrorMsg("Google Authorization Window was closed or failed");
+      console.error('Google Register Failed, opening fallback prompt...', error);
+      handleGoogleSignInFallback();
     }
   });
 

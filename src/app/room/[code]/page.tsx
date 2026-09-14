@@ -372,6 +372,54 @@ export default function RoomPage({ params, searchParams }: { params: any, search
     }
   }, []);
 
+  // Real-time polling for online room synchronization
+  useEffect(() => {
+    if (modeParam !== 'online_friend' || !roomCode || roomCode === 'PRACTICE') return;
+
+    const myName = userProfile?.name || 'لاعب 1';
+    fetch(`/api/room/${roomCode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'join', managerId: 'player2', managerName: myName })
+    }).catch(console.error);
+
+    const interval = setInterval(() => {
+      fetch(`/api/room/${roomCode}`)
+        .then(res => res.json())
+        .then(roomData => {
+          if (roomData && roomData.gameState) {
+            if (roomData.managers && roomData.managers.length >= 2) {
+              setIsPlayer2Joined(true);
+              setConnectedManagers(roomData.managers);
+              setManagers(prev => {
+                const updated = [...prev];
+                roomData.managers.forEach((rm: any) => {
+                  const idx = updated.findIndex(m => m.id === rm.id);
+                  if (idx >= 0) {
+                    updated[idx] = { ...updated[idx], budget: rm.budget, name: rm.name };
+                  } else {
+                    updated.push(rm);
+                  }
+                });
+                return updated;
+              });
+            }
+            if (roomData.gameState.current_bid > 0) {
+              setGameState(prev => ({
+                ...prev,
+                current_bid: roomData.gameState.current_bid,
+                winning_manager_id: roomData.gameState.winning_manager_id,
+                waiting_initial_bid: roomData.gameState.waiting_initial_bid
+              }));
+            }
+          }
+        })
+        .catch(console.error);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [modeParam, roomCode, userProfile?.name]);
+
   const startPracticeDraft = (customManagers?: Manager[]) => {
     const activeManagers = customManagers || managers;
     if (customManagers) {
@@ -870,6 +918,15 @@ export default function RoomPage({ params, searchParams }: { params: any, search
       winning_manager_id: targetManagerId, 
       seconds_remaining: prev.seconds_remaining < 5 ? 5 : prev.seconds_remaining 
     }));
+
+    if (modeParam === 'online_friend') {
+      fetch(`/api/room/${roomCode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'bid', bidAmount: amount, managerId: targetManagerId })
+      }).catch(console.error);
+    }
+
     return true;
   };
 
@@ -900,6 +957,14 @@ export default function RoomPage({ params, searchParams }: { params: any, search
         winning_manager_id: targetManagerId,
         seconds_remaining: 15
       }));
+
+      if (modeParam === 'online_friend') {
+        fetch(`/api/room/${roomCode}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'set_initial_bid', initialBid: amount, managerId: targetManagerId })
+        }).catch(console.error);
+      }
       setCustomBid("");
     }
   };
