@@ -34,11 +34,196 @@ const POSITIONS_LIST = ['ST', 'CF', 'LW', 'RW', 'CAM', 'CM', 'CDM', 'CB', 'LB', 
 
 // Global Position Categorizer
 const getCat = (pos: string) => {
-  if (['ST', 'CF', 'LW', 'RW', 'LF', 'RF'].includes(pos)) return 'ATT';
-  if (['CDM', 'CM', 'CAM', 'LM', 'RM', 'LAM', 'RAM'].includes(pos)) return 'MID';
-  if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(pos)) return 'DEF';
-  if (pos === 'GK') return 'GK';
+  if (!pos) return 'MID';
+  const p = String(pos).toUpperCase().trim();
+  if (p === 'GK' || p === 'GOALKEEPER') return 'GK';
+  if (['CB', 'LB', 'RB', 'LWB', 'RWB', 'DEF', 'DEFENDER'].includes(p)) return 'DEF';
+  if (['ST', 'CF', 'LW', 'RW', 'LF', 'RF', 'ATT', 'FORWARD'].includes(p)) return 'ATT';
   return 'MID';
+};
+
+// Known famous football player override dictionary
+const FAMOUS_NAMES_MAP: Record<string, string> = {
+  "Neymar da Silva Santos Jr.": "Neymar Jr.",
+  "Neymar Jr.": "Neymar Jr.",
+  "Sergio Asenjo Andrés": "Sergio Asenjo",
+  "Allan Marques Loureiro": "Allan",
+  "Cristiano Ronaldo dos Santos Aveiro": "Cristiano Ronaldo",
+  "Lionel Andrés Messi Cuccittini": "Lionel Messi",
+  "Ederson Santana de Moraes": "Ederson",
+  "Alisson Ramses Becker": "Alisson Becker",
+  "Gabriel Fernando de Jesus": "Gabriel Jesus",
+  "Vinícius José Paixão de Oliveira Júnior": "Vinícius Jr.",
+  "Vinícius Júnior": "Vinícius Jr.",
+  "Thiago Emiliano da Silva": "Thiago Silva",
+  "Carlos Henrique Casimiro": "Casemiro",
+  "Casimiro": "Casemiro",
+  "Felipe Anderson Pereira Gomes": "Felipe Anderson",
+  "Bruno Borges Fernandes": "Bruno Fernandes",
+  "João Pedro Cavaco Cancelo": "João Cancelo",
+  "Bernardo Mota Veiga de Carvalho e Silva": "Bernardo Silva",
+  "Rúben Santos Gato Alves Dias": "Rúben Dias",
+  "Diogo José Teixeira da Silva": "Diogo Jota",
+  "Frederico Rodrigues de Paula Santos": "Fred",
+  "Marcos Aoás Corrêa": "Marquinhos",
+  "Gabriel Barbosa Almeida": "Gabigol",
+  "Richarlison de Andrade": "Richarlison",
+  "Fernando Luiz Roza": "Fernandinho",
+  "Lucas Rodrigues Moura da Silva": "Lucas Moura",
+  "Fabio Henrique Tavares": "Fabinho",
+  "David Luiz Moreira Marinho": "David Luiz",
+  "José Paulo Bezerra Maciel Júnior": "Paulinho",
+  "Philippe Coutinho Correia": "Philippe Coutinho",
+  "Willian Borges da Silva": "Willian",
+  "Willi Orban": "Willi Orban",
+  "Benjamin Chilwell": "Ben Chilwell",
+  "Robert Lewandowski": "Lewandowski",
+  "Kevin De Bruyne": "De Bruyne",
+  "Kylian Mbappé": "Mbappé",
+  "Mohamed Salah": "Salah",
+  "Erling Haaland": "Haaland",
+  "Virgil van Dijk": "van Dijk",
+  "Son Heung Min": "Son",
+  "Harry Kane": "Kane",
+  "Luka Modrić": "Modrić",
+  "Toni Kroos": "Kroos",
+  "Karim Benzema": "Benzema",
+  "Antoine Griezmann": "Griezmann",
+  "Joshua Kimmich": "Kimmich",
+  "Sadio Mané": "Mané",
+  "Romelu Lukaku": "Lukaku",
+  "Raheem Sterling": "Sterling",
+  "Marcus Rashford": "Rashford",
+  "Jadon Sancho": "Sancho",
+  "Trent Alexander-Arnold": "Alexander-Arnold",
+  "Andrew Robertson": "Robertson",
+  "Alphonso Davies": "Davies",
+  "Lautaro Martínez": "Lautaro",
+  "Paulo Dybala": "Dybala",
+  "Nicolò Barella": "Barella",
+  "Federico Chiesa": "Chiesa",
+  "Ciro Immobile": "Immobile",
+  "Dusan Vlahovic": "Vlahović",
+  "Pedri": "Pedri",
+  "Gavi": "Gavi",
+  "Jude Bellingham": "Bellingham",
+  "Bukayo Saka": "Saka",
+  "Phil Foden": "Foden",
+  "Declan Rice": "Rice",
+  "Rodri": "Rodri",
+  "Victor Osimhen": "Osimhen",
+  "Khvicha Kvaratskhelia": "Kvaratskhelia",
+  "Ronald Araújo": "Araújo",
+  "Jules Koundé": "Koundé",
+  "Éder Militão": "Militão",
+  "David Alaba": "Alaba",
+  "Antonio Rüdiger": "Rüdiger",
+  "Achraf Hakimi": "Hakimi",
+  "Theo Hernández": "Theo Hernández",
+  "Mike Maignan": "Maignan",
+  "Gianluigi Donnarumma": "Donnarumma",
+  "Thibaut Courtois": "Courtois",
+  "Marc-André ter Stegen": "ter Stegen",
+  "Jan Oblak": "Oblak",
+  "Yassine Bounou": "Bounou",
+  "Emiliano Martínez": "Emi Martínez",
+};
+
+const getFamousPlayerName = (name: string): string => {
+  if (!name) return "Player";
+  const trimmed = name.trim();
+  if (FAMOUS_NAMES_MAP[trimmed]) return FAMOUS_NAMES_MAP[trimmed];
+
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return parts[0];
+
+  if (parts.length === 3) {
+    const last = parts[2].toLowerCase();
+    const middle = parts[1].toLowerCase();
+    if (['andrés', 'andres', 'junior', 'jr', 'jr.', 'dos', 'da', 'de', 'gomes', 'loureiro', 'moraes', 'almeida', 'roza'].includes(last)) {
+      return `${parts[0]} ${parts[1]}`;
+    }
+    if (['dos', 'da', 'de', 'del', 'van'].includes(middle)) {
+      return `${parts[0]} ${parts[2]}`;
+    }
+    return `${parts[0]} ${parts[2]}`;
+  }
+
+  if (parts.length > 3) {
+    return `${parts[0]} ${parts[parts.length - 1]}`;
+  }
+
+  return trimmed;
+};
+
+// Weighted shuffle prioritizing high rating / famous players
+const weightedShuffle = (arr: Player[]) => {
+  return [...arr].sort((a, b) => (b.rating + Math.random() * 8) - (a.rating + Math.random() * 8));
+};
+
+// Position-aware FUT stats generator
+const getPlayerFutStats = (player: { rating: number; position: string }) => {
+  const r = player.rating;
+  const cat = getCat(player.position);
+  const pos = player.position?.toUpperCase() || 'CM';
+  
+  // Random variance helper
+  const v = (base: number, range: number = 5) => Math.min(99, Math.max(40, base + Math.floor(Math.random() * range) - Math.floor(range / 2)));
+  
+  if (cat === 'GK' || pos === 'GK') {
+    return {
+      isGK: true,
+      stats: [
+        { val: v(r + 2), label: 'DIV' },
+        { val: v(r - 1), label: 'HAN' },
+        { val: v(r - 4), label: 'KIC' },
+        { val: v(r + 1), label: 'REF' },
+        { val: v(r - 8), label: 'SPD' },
+        { val: v(r - 2), label: 'POS' },
+      ]
+    };
+  }
+  
+  if (cat === 'DEF') {
+    return {
+      isGK: false,
+      stats: [
+        { val: v(r - 8), label: 'PAC' },
+        { val: v(r - 20), label: 'SHO' },
+        { val: v(r - 6), label: 'PAS' },
+        { val: v(r - 12), label: 'DRI' },
+        { val: v(r + 2), label: 'DEF' },
+        { val: v(r - 2), label: 'PHY' },
+      ]
+    };
+  }
+  
+  if (cat === 'ATT') {
+    return {
+      isGK: false,
+      stats: [
+        { val: v(r + 2), label: 'PAC' },
+        { val: v(r + 1), label: 'SHO' },
+        { val: v(r - 5), label: 'PAS' },
+        { val: v(r + 3), label: 'DRI' },
+        { val: v(r - 30), label: 'DEF' },
+        { val: v(r - 10), label: 'PHY' },
+      ]
+    };
+  }
+  
+  // MID
+  return {
+    isGK: false,
+    stats: [
+      { val: v(r - 4), label: 'PAC' },
+      { val: v(r - 8), label: 'SHO' },
+      { val: v(r + 2), label: 'PAS' },
+      { val: v(r + 1), label: 'DRI' },
+      { val: v(r - 10), label: 'DEF' },
+      { val: v(r - 4), label: 'PHY' },
+    ]
+  };
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
@@ -63,10 +248,11 @@ export default function RoomPage({ params, searchParams }: { params: any, search
   const sizeParam = searchParamsHook?.get('size') || unwrappedSearchParams?.size;
   const maxParam = searchParamsHook?.get('max') || unwrappedSearchParams?.max;
   const diffParam = searchParamsHook?.get('diff') || unwrappedSearchParams?.diff;
+  const modeParam = searchParamsHook?.get('mode') || unwrappedSearchParams?.mode || 'local_friend';
 
   const initialBudget = budgetParam ? parseInt(String(budgetParam), 10) : 100000000;
   const totalRounds = sizeParam ? parseInt(String(sizeParam), 10) : 11;
-  const targetMaxPlayers = maxParam ? parseInt(String(maxParam), 10) : 4;
+  const targetMaxPlayers = maxParam ? parseInt(String(maxParam), 10) : 2;
   const initialDiff = (diffParam && ['easy', 'medium', 'hard', 'legendary'].includes(String(diffParam).toLowerCase()))
     ? String(diffParam).toLowerCase()
     : 'medium';
@@ -83,10 +269,26 @@ export default function RoomPage({ params, searchParams }: { params: any, search
   const [connectedManagers, setConnectedManagers] = useState<Manager[]>([]);
   const [formation, setFormation] = useState<string>('4-3-3');
   
-  const [managers, setManagers] = useState<Manager[]>([
-    { id: 'you', name: 'You', budget: initialBudget, squad: [] },
-    { id: 'bot1', name: 'Pep AI (Tactical)', budget: initialBudget, squad: [] },
-  ]);
+  const getInitialManagers = (): Manager[] => {
+    if (modeParam === 'bot') {
+      return [
+        { id: 'you', name: 'أنت', budget: initialBudget, squad: [] },
+        { id: 'bot1', name: 'المدرب المحترف (Pep AI)', budget: initialBudget, squad: [] }
+      ];
+    } else if (modeParam === 'online_friend') {
+      return [
+        { id: 'you', name: 'أنت (المستضيف)', budget: initialBudget, squad: [] },
+        { id: 'player2', name: 'لاعب 2 (أونلاين)', budget: initialBudget, squad: [] }
+      ];
+    }
+    // Default: Local Friend (Pass & Play)
+    return [
+      { id: 'you', name: 'اللاعب 1', budget: initialBudget, squad: [] },
+      { id: 'player2', name: 'اللاعب 2 (صديقك)', budget: initialBudget, squad: [] }
+    ];
+  };
+
+  const [managers, setManagers] = useState<Manager[]>(getInitialManagers());
 
   useEffect(() => {
     if (initialBudget && managers[0]?.squad.length === 0) {
@@ -113,7 +315,7 @@ export default function RoomPage({ params, searchParams }: { params: any, search
   }>({
     status: 'drafting',
     current_bid: 0,
-    winning_manager_id: 'bot1',
+    winning_manager_id: modeParam === 'bot' ? 'bot1' : 'player2',
     seconds_remaining: 15,
     waiting_initial_bid: true,
     turn_manager_id: 'you',
@@ -143,16 +345,13 @@ export default function RoomPage({ params, searchParams }: { params: any, search
     const anyBotHasBudget = currentManagers.some(m => m.id !== 'you' && m.budget > 0);
     
     if (myBudget <= 0 && anyBotHasBudget) {
-      // I'm broke, let a bot set the bid
       const botWithBudget = currentManagers.find(m => m.id !== 'you' && m.budget > 0);
       return botWithBudget?.id || 'bot1';
     }
     if (!anyBotHasBudget && myBudget > 0) {
-      // All bots are broke, I always set the bid
       return 'you';
     }
-    // Normal alternating logic
-    return (nextRound % currentManagers.length) === 0 ? 'you' : 'bot1';
+    return (nextRound % currentManagers.length) === 0 ? 'you' : (currentManagers[1]?.id || 'player2');
   };
 
   useEffect(() => {
@@ -181,15 +380,19 @@ export default function RoomPage({ params, searchParams }: { params: any, search
     fetch(`${API_BASE}/api/players`)
       .then(res => res.json())
       .then(playersData => {
-        const formatted: Player[] = playersData.map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          rating: p.rating,
-          position: p.position,
-          image: p.image_url,
-          club: p.club,
-          nationality: p.nationality
-        }));
+        const formatted: Player[] = playersData.map((p: any) => {
+          const rawUrl = p.img_url || p.image || '';
+          const proxyUrl = `/api/player-photo/${p.id}?name=${encodeURIComponent(p.name)}&url=${encodeURIComponent(rawUrl)}`;
+          return {
+            id: p.id,
+            name: getFamousPlayerName(p.name),
+            rating: p.rating,
+            position: p.pos || p.position || 'CM',
+            image: proxyUrl,
+            club: p.club || p.club_name || 'Free Agent',
+            nationality: p.nat || p.nationality || 'World'
+          };
+        });
         
         // Deduplicate formatted players by ID
         const uniqueMap = new Map<number, Player>();
@@ -199,47 +402,78 @@ export default function RoomPage({ params, searchParams }: { params: any, search
         setFullPlayerPool(uniqueFormatted);
 
         const numManagers = activeManagers.length;
-        const totalNeeded = numManagers * totalRounds;
         
-        const gks = uniqueFormatted.filter((p: Player) => getCat(p.position) === 'GK').sort(() => 0.5 - Math.random());
-        const defs = uniqueFormatted.filter((p: Player) => getCat(p.position) === 'DEF').sort(() => 0.5 - Math.random());
-        const mids = uniqueFormatted.filter((p: Player) => getCat(p.position) === 'MID').sort(() => 0.5 - Math.random());
-        const atts = uniqueFormatted.filter((p: Player) => getCat(p.position) === 'ATT').sort(() => 0.5 - Math.random());
-
-        const getPosCounts = (rounds: number) => {
-          if (rounds <= 4) return { gk: 1, def: 1, mid: 1, att: 1 };
-          if (rounds === 5) return { gk: 1, def: 2, mid: 1, att: 1 };
-          if (rounds === 7) return { gk: 1, def: 2, mid: 2, att: 2 };
-          return { gk: 1, def: 4, mid: 3, att: 3 };
-        };
-
-        const posCounts = getPosCounts(totalRounds);
-
-        // Create ordered pool proportional to managers and squad size
-        // Ensure NO duplicate IDs across the pool
-        const poolIds = new Set<number>();
-        const addUnique = (arr: Player[], count: number) => {
+        // Dynamic Tactical Round Pool Generator:
+        // Round 1 (index 0): GOALKEEPERS (GK vs GK) -> Always start with Goalkeepers!
+        // Rounds 2..5 (index 1..4): DEFENDERS (CB, LB, RB)
+        // Rounds 6..8 (index 5..7): MIDFIELDERS (CM, CDM, CAM, LM, RM)
+        // Rounds 9..11 (index 8..10): ATTACKERS (ST, RW, LW, CF)
+        const buildExcitingRoundPool = (pool: Player[], managersCount: number, roundsCount: number): Player[] => {
+          const usedIds = new Set<number>();
           const result: Player[] = [];
-          for (const p of arr) {
-            if (result.length >= count) break;
-            if (!poolIds.has(p.id)) { poolIds.add(p.id); result.push(p); }
+
+          // Group by position
+          const gks = pool.filter(p => getCat(p.position) === 'GK');
+          const defs = pool.filter(p => getCat(p.position) === 'DEF');
+          const mids = pool.filter(p => getCat(p.position) === 'MID');
+          const atts = pool.filter(p => getCat(p.position) === 'ATT');
+
+          // Pick 1 surprise legend round randomly out of roundsCount (e.g. round 3, 5, or 8)
+          const legendRoundIdx = Math.floor(Math.random() * (roundsCount - 2)) + 1; // Round 2 to N-1
+
+          const getPosBucket = (r: number): Player[] => {
+            if (r === 0) return gks; // ROUND 1: GOALKEEPERS!
+            if (r <= 4) return defs; // DEFENDERS
+            if (r <= 7) return mids; // MIDFIELDERS
+            return atts;             // ATTACKERS
+          };
+
+          for (let r = 0; r < roundsCount; r++) {
+            const posBucket = getPosBucket(r);
+            const isLegendRound = (r === legendRoundIdx);
+
+            let roundCandidates: Player[];
+
+            if (isLegendRound) {
+              // Rare Legend Surprise: 91+ rating or is_legend
+              const posLegends = posBucket.filter(p => (p.rating >= 91 || p.is_legend) && !usedIds.has(p.id));
+              const allLegends = pool.filter(p => (p.rating >= 91 || p.is_legend) && !usedIds.has(p.id));
+              roundCandidates = posLegends.length >= managersCount ? posLegends : allLegends;
+            } else {
+              // Regular Famous Top Club Players (80 to 90 rating)
+              const topStars = posBucket.filter(p => p.rating >= 80 && p.rating <= 90 && !usedIds.has(p.id));
+              roundCandidates = topStars.length >= managersCount ? topStars : posBucket.filter(p => !usedIds.has(p.id));
+            }
+
+            // Shuffle candidates so players get fresh famous stars every match
+            const shuffled = [...roundCandidates].sort(() => 0.5 - Math.random());
+
+            for (let m = 0; m < managersCount; m++) {
+              let p = shuffled[m];
+              if (!p || usedIds.has(p.id)) {
+                p = posBucket.find(x => !usedIds.has(x.id)) || pool.find(x => !usedIds.has(x.id));
+              }
+              if (p) {
+                usedIds.add(p.id);
+                result.push(p);
+              }
+            }
           }
+
+          // Fallback if total needed is not reached
+          const unusedFallback = pool.filter(p => !usedIds.has(p.id)).sort(() => 0.5 - Math.random());
+          while (result.length < managersCount * roundsCount && unusedFallback.length > 0) {
+            const p = unusedFallback.pop();
+            if (p) {
+              usedIds.add(p.id);
+              result.push(p);
+            }
+          }
+
           return result;
         };
 
-        const orderedPool = [
-          ...addUnique(gks, numManagers * posCounts.gk),
-          ...addUnique(defs, numManagers * posCounts.def),
-          ...addUnique(mids, numManagers * posCounts.mid),
-          ...addUnique(atts, numManagers * posCounts.att)
-        ];
-        
-        const remaining = uniqueFormatted.filter((p: Player) => !poolIds.has(p.id)).sort(() => 0.5 - Math.random());
-        while (orderedPool.length < totalNeeded) {
-            const next = remaining.pop();
-            if (next && !poolIds.has(next.id)) { poolIds.add(next.id); orderedPool.push(next); }
-            else if (!next) break;
-        }
+        const orderedPool = buildExcitingRoundPool(uniqueFormatted, numManagers, totalRounds);
 
         setAvailablePool(orderedPool);
         setRoomState('drafting');
@@ -375,16 +609,14 @@ export default function RoomPage({ params, searchParams }: { params: any, search
       managers.forEach(m => m.squad.forEach(p => currentSquadIds.add(p.id)));
       availablePool.forEach(p => currentSquadIds.add(p.id));
       currentSquadIds.add(activePlayer.id);
-      const candidates = fullPlayerPool
-        .filter(p => getCat(p.position) === cat && !currentSquadIds.has(p.id))
-        .sort(() => 0.5 - Math.random())
-        .slice(0, 3);
+      const candidates = weightedShuffle(
+        fullPlayerPool.filter(p => getCat(p.position) === cat && !currentSquadIds.has(p.id))
+      ).slice(0, 3);
 
       if (candidates.length < 3) {
-        const remainingCandidates = fullPlayerPool
-          .filter(p => !currentSquadIds.has(p.id))
-          .sort(() => 0.5 - Math.random())
-          .slice(0, 3 - candidates.length);
+        const remainingCandidates = weightedShuffle(
+          fullPlayerPool.filter(p => !currentSquadIds.has(p.id))
+        ).slice(0, 3 - candidates.length);
         candidates.push(...remainingCandidates);
       }
 
@@ -626,15 +858,16 @@ export default function RoomPage({ params, searchParams }: { params: any, search
     }, 4500);
   };
 
-  const handleBid = (amount: number) => {
-    if (isDraftFinished || !me || gameState.status !== 'drafting') return false;
-    if (amount > me.budget) { alert(`Insufficient budget! Remaining: ${formatMoney(me.budget)}`); return false; }
-    if (amount <= gameState.current_bid) { alert(`Bid must be higher than ${formatMoney(gameState.current_bid)}`); return false; }
+  const handleBid = (amount: number, targetManagerId: string = 'you') => {
+    const targetManager = managers.find(m => m.id === targetManagerId) || me;
+    if (isDraftFinished || !targetManager || gameState.status !== 'drafting') return false;
+    if (amount > targetManager.budget) { alert(`الميزانية غير كافية! المتبقي: ${formatMoney(targetManager.budget)}`); return false; }
+    if (amount <= gameState.current_bid) { alert(`المزايدة يجب أن تكون أعلى من ${formatMoney(gameState.current_bid)}`); return false; }
     
     setGameState(prev => ({ 
       ...prev, 
       current_bid: amount, 
-      winning_manager_id: 'you', 
+      winning_manager_id: targetManagerId, 
       seconds_remaining: prev.seconds_remaining < 5 ? 5 : prev.seconds_remaining 
     }));
     return true;
@@ -652,18 +885,19 @@ export default function RoomPage({ params, searchParams }: { params: any, search
     return amount;
   };
 
-  const handleSetInitialBid = (amountToSet?: number) => {
+  const handleSetInitialBid = (amountToSet?: number, targetManagerId: string = 'you') => {
     const amount = amountToSet !== undefined ? amountToSet : parseBidAmount(customBid);
+    const targetManager = managers.find(m => m.id === targetManagerId) || me;
     if (!isNaN(amount) && amount > 0) {
-      if (amount > me.budget) {
-        alert("Initial bid exceeds your budget!");
+      if (amount > targetManager.budget) {
+        alert("المزاد السري الأولي يتجاوز الميزانية!");
         return;
       }
       setGameState(prev => ({
         ...prev,
         waiting_initial_bid: false,
         current_bid: amount,
-        winning_manager_id: 'you',
+        winning_manager_id: targetManagerId,
         seconds_remaining: 15
       }));
       setCustomBid("");
@@ -1011,10 +1245,21 @@ export default function RoomPage({ params, searchParams }: { params: any, search
                 className={`flex flex-col items-center flex-shrink-0 w-20 p-2 rounded-xl border cursor-pointer transition-all ${isSelected ? 'border-[#00F0FF] bg-[#00F0FF]/20 scale-105 shadow-[0_0_15px_rgba(0,240,255,0.4)]' : 'border-white/10 bg-black/40 hover:bg-white/10'}`}
               >
                 <div className="w-14 h-14 border-b-2 shadow-lg mb-1 relative flex items-end justify-center z-10 border-[#FFD700] bg-black/60 rounded overflow-hidden">
-                  <img src={sub.image} alt={sub.name} className="w-[120%] h-[120%] object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                  <img 
+                    src={sub.image} 
+                    alt={sub.name} 
+                    className="w-[120%] h-[120%] object-contain" 
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (!target.dataset.fallback) {
+                        target.dataset.fallback = "true";
+                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(sub.name)}&background=0D1117&color=FFD700&bold=true`;
+                      }
+                    }} 
+                  />
                   <div className="absolute bottom-0 w-full text-center text-[9px] font-bold text-white bg-black/90">{sub.rating}</div>
                 </div>
-                <div className="text-[10px] text-white font-bold truncate w-full text-center">{sub.name.split(' ').pop()}</div>
+                <div className="text-[10px] text-white font-bold truncate w-full text-center">{getFamousPlayerName(sub.name)}</div>
                 <div className="text-[8px] text-[#00F0FF] font-bold uppercase">{sub.position}</div>
               </div>
             );
@@ -1084,7 +1329,17 @@ export default function RoomPage({ params, searchParams }: { params: any, search
                     <span className="text-[10px] text-zinc-400">({data.isWinner ? 'فاز بالمزاد' : 'لاعب البكج/العشوائي'})</span>
                   </div>
                   <div className="w-28 h-28 sm:w-40 sm:h-40 border-b-4 border-[#FFD700] mb-2 sm:mb-4 flex items-end justify-center">
-                    <img src={data.player.image} className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    <img 
+                      src={data.player.image} 
+                      className="w-full h-full object-contain" 
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (!target.dataset.fallback) {
+                          target.dataset.fallback = "true";
+                          target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.player.name)}&background=0D1117&color=FFD700&bold=true`;
+                        }
+                      }} 
+                    />
                   </div>
                   <div className="text-3xl sm:text-4xl font-black text-white mb-1">{data.player.rating}</div>
                   <div className="text-base sm:text-xl font-black text-[#00F0FF] uppercase mb-1">{data.player.position}</div>
@@ -1144,23 +1399,45 @@ export default function RoomPage({ params, searchParams }: { params: any, search
                         className="flex flex-col items-center p-4 h-full justify-center gap-2"
                       >
                         <div className="text-[#FFD700] text-xs font-black uppercase tracking-widest mb-1">✅ اخترت هذا!</div>
-                        <div className="w-28 h-28 flex items-end justify-center">
-                          <img src={mysteryOptions[idx].image} className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                        <div className="w-28 h-28 flex items-end justify-center overflow-hidden rounded-2xl bg-black/40 border border-white/10 p-1">
+                          <img 
+                            src={mysteryOptions[idx].image || `/api/player-photo/${mysteryOptions[idx].id}?name=${encodeURIComponent(mysteryOptions[idx].name)}`} 
+                            alt={mysteryOptions[idx].name}
+                            className="w-full h-full object-contain drop-shadow-md" 
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (!target.dataset.fallback) {
+                                target.dataset.fallback = "true";
+                                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(getFamousPlayerName(mysteryOptions[idx].name))}&background=0D1117&color=FFD700&bold=true&size=120`;
+                              }
+                            }} 
+                          />
                         </div>
                         <div className="text-4xl font-black text-white">{mysteryOptions[idx].rating}</div>
                         <div className="text-base font-black text-[#00F0FF] uppercase">{mysteryOptions[idx].position}</div>
-                        <div className="text-sm font-bold text-zinc-200 text-center w-full truncate px-2">{mysteryOptions[idx].name}</div>
+                        <div className="text-sm font-bold text-zinc-200 text-center w-full truncate px-2">{getFamousPlayerName(mysteryOptions[idx].name)}</div>
                       </motion.div>
                     ) : isLocked ? (
                       // UNCHOSEN dimmed pack
                       <div className="flex flex-col items-center p-4 h-full justify-center gap-2 opacity-50">
                         <div className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1">❌ لم تختره</div>
-                        <div className="w-20 h-20 opacity-40 flex items-end justify-center">
-                          <img src={mysteryOptions[idx].image} className="w-full h-full object-contain grayscale" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                        <div className="w-20 h-20 opacity-40 flex items-end justify-center overflow-hidden rounded-xl bg-black/40 border border-white/10 p-1">
+                          <img 
+                            src={mysteryOptions[idx].image || `/api/player-photo/${mysteryOptions[idx].id}?name=${encodeURIComponent(mysteryOptions[idx].name)}`} 
+                            alt={mysteryOptions[idx].name}
+                            className="w-full h-full object-contain grayscale" 
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (!target.dataset.fallback) {
+                                target.dataset.fallback = "true";
+                                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(getFamousPlayerName(mysteryOptions[idx].name))}&background=0D1117&color=FFD700&bold=true&size=120`;
+                              }
+                            }} 
+                          />
                         </div>
                         <div className="text-2xl font-black text-zinc-400">{mysteryOptions[idx].rating}</div>
                         <div className="text-xs font-bold text-zinc-400 uppercase">{mysteryOptions[idx].position}</div>
-                        <div className="text-xs font-bold text-zinc-400 text-center w-full truncate px-2">{mysteryOptions[idx].name}</div>
+                        <div className="text-xs font-bold text-zinc-400 text-center w-full truncate px-2">{getFamousPlayerName(mysteryOptions[idx].name)}</div>
                       </div>
                     ) : (
                       // MYSTERY COVER
@@ -1191,11 +1468,21 @@ export default function RoomPage({ params, searchParams }: { params: any, search
                     {opponent.squad.map((p, i) => (
                       <div key={i} className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-xl px-2.5 py-1.5 w-full">
                         <div className="w-7 h-7 rounded-md bg-black/60 border border-white/10 flex items-end justify-center overflow-hidden">
-                          <img src={p.image} className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                          <img 
+                            src={p.image} 
+                            className="w-full h-full object-contain" 
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (!target.dataset.fallback) {
+                                target.dataset.fallback = "true";
+                                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=0D1117&color=FFD700&bold=true`;
+                              }
+                            }} 
+                          />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-[10px] font-black text-[#00F0FF] uppercase">{p.position}</div>
-                          <div className="text-[11px] font-bold text-white truncate">{p.name.split(' ').pop()}</div>
+                          <div className="text-[11px] font-bold text-white truncate">{getFamousPlayerName(p.name)}</div>
                         </div>
                         <div className="text-xs font-black text-[#FFD700]">{p.rating}</div>
                       </div>
@@ -1291,33 +1578,85 @@ export default function RoomPage({ params, searchParams }: { params: any, search
         </aside>
 
         <section className="flex-1 flex flex-col items-center py-8 px-4 relative min-h-max">
-          <div className="flex flex-col items-center mb-6">
-            <div className={`text-6xl md:text-7xl font-black ${gameState.seconds_remaining <= 5 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+          {/* EAFC TIMER & STADIUM HEADER */}
+          <div className="flex flex-col items-center mb-4 text-center">
+            <div className="flex items-center gap-2 bg-black/60 px-4 py-1 rounded-full border border-white/10 text-xs font-bold text-amber-400 mb-1">
+              <Clock className="w-3.5 h-3.5 text-[#FFD700]" /> الجولة {roundIndex + 1} من {totalRounds}
+            </div>
+            <div className={`text-6xl md:text-7xl font-black tracking-tight ${gameState.seconds_remaining <= 5 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
               00:{gameState.seconds_remaining.toString().padStart(2, '0')}
             </div>
           </div>
 
-          {/* ACTIVE PLAYER CARD */}
+          {/* ACTIVE PLAYER FUT GOLD CARD */}
           {activePlayer ? (
-            <div className={`fut-card w-full max-w-[340px] h-[460px] rounded-[2.5rem] flex flex-col items-center justify-between p-6 relative overflow-hidden ${activePlayer.rating >= 90 ? 'bg-gradient-to-br from-[#1a1500] to-black border-4 border-[#FFD700] shadow-[0_0_50px_rgba(255,215,0,0.8)]' : 'bg-black/60 border-2 border-white/10'}`}>
-              <div className="flex justify-between w-full z-10">
-                <div className="flex flex-col items-start">
-                  <span className={`text-5xl font-black ${activePlayer.rating >= 90 ? 'text-transparent bg-clip-text bg-gradient-to-b from-[#FFD700] to-white' : 'text-white'}`}>{activePlayer.rating}</span>
-                  <span className="text-lg font-bold text-[#00F0FF]">{activePlayer.position}</span>
+            <div className="relative group w-full max-w-[340px] h-[480px] rounded-[2.5rem] p-5 flex flex-col justify-between items-center overflow-hidden border-4 border-[#FFD700] bg-gradient-to-b from-[#2a2100] via-[#0f0b00] to-[#050505] shadow-[0_0_60px_rgba(255,215,0,0.6)]">
+              {/* Metallic Card Glow */}
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#FFD700]/30 via-transparent to-transparent pointer-events-none" />
+              
+              {/* TOP STATS HEADER: Rating + Position + Club */}
+              <div className="w-full flex justify-between items-start z-20">
+                <div className="flex flex-col items-center bg-black/70 px-3 py-1.5 rounded-2xl border border-[#FFD700]/40 backdrop-blur-md">
+                  <span className="text-4xl font-black text-[#FFD700] drop-shadow-[0_2px_10px_rgba(255,215,0,0.8)]">{activePlayer.rating}</span>
+                  <span className="text-xs font-black text-white uppercase tracking-wider">{activePlayer.position}</span>
                 </div>
-                {activePlayer.club && (
-                  <span className="text-xs font-bold bg-white/10 px-3 py-1 rounded-full text-zinc-300 self-start">{activePlayer.club}</span>
-                )}
+
+                <div className="flex flex-col items-end gap-1 z-20">
+                  {activePlayer.club && (
+                    <span className="text-[10px] font-black bg-black/80 text-amber-300 border border-amber-500/30 px-3 py-1 rounded-full backdrop-blur-md uppercase tracking-wider">
+                      {activePlayer.club}
+                    </span>
+                  )}
+                  {activePlayer.nationality && (
+                    <span className="text-[10px] font-bold text-zinc-300 bg-black/60 px-2 py-0.5 rounded-md border border-white/10">
+                      {activePlayer.nationality}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="w-52 h-52 z-20 flex items-center justify-center">
-                <img src={activePlayer.image} alt={activePlayer.name} className="w-full h-full object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.9)]" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+
+              {/* PLAYER CUTOUT IMAGE */}
+              <div className="w-full h-56 relative z-10 flex items-center justify-center -mt-2 -mb-2">
+                <img 
+                  src={`/api/player-photo/${activePlayer.id}?name=${encodeURIComponent(activePlayer.name)}`} 
+                  alt={activePlayer.name} 
+                  className="max-w-full max-h-full object-contain drop-shadow-[0_12px_25px_rgba(0,0,0,0.9)] transform group-hover:scale-105 transition duration-300" 
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (!target.dataset.fallback) {
+                      target.dataset.fallback = "true";
+                      target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(activePlayer.name)}&background=1a1500&color=FFD700&bold=true&size=200`;
+                    }
+                  }} 
+                />
               </div>
-              <div className="flex flex-col items-center w-full z-10 bg-black/70 backdrop-blur p-4 rounded-2xl border border-white/10">
-                <h3 className="text-xl font-black uppercase text-center truncate w-full text-white">{activePlayer.name}</h3>
+
+              {/* PLAYER NAME & FUT STATS BAR */}
+              <div className="w-full z-20 flex flex-col items-center bg-black/90 backdrop-blur-md p-3.5 rounded-2xl border border-[#FFD700]/40 shadow-xl">
+                <h3 className="text-xl font-black text-white uppercase tracking-wider truncate w-full text-center mb-2 drop-shadow-md">
+                  {activePlayer.name}
+                </h3>
+
+                <div className="w-full h-px bg-gradient-to-r from-transparent via-[#FFD700]/60 to-transparent mb-2" />
+
+                {/* EA FC STATS GRID — Position-Aware */}
+                {(() => {
+                  const futStats = getPlayerFutStats(activePlayer);
+                  return (
+                    <div className="grid grid-cols-6 gap-1 w-full text-[10px] font-black text-[#FFD700] text-center">
+                      {futStats.stats.map((s, i) => (
+                        <div key={i} className="flex flex-col">
+                          <span className={`text-xs ${s.val >= 90 ? 'text-emerald-400' : s.val >= 80 ? 'text-white' : s.val >= 65 ? 'text-amber-300' : 'text-rose-400'}`}>{s.val}</span>
+                          <span className="text-zinc-400 text-[8px]">{s.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ) : (
-            <div className="w-full max-w-[340px] h-[460px] rounded-[2.5rem] bg-black/40 border-2 border-dashed border-white/20 flex flex-col items-center justify-center p-6 text-zinc-400 gap-3">
+            <div className="w-full max-w-[340px] h-[480px] rounded-[2.5rem] bg-black/40 border-2 border-dashed border-white/20 flex flex-col items-center justify-center p-6 text-zinc-400 gap-3">
               <Loader2 className="w-10 h-10 animate-spin text-[#00F0FF]" />
               <span className="font-bold text-sm">جاري جلب لاعب المزاد...</span>
             </div>
@@ -1325,11 +1664,11 @@ export default function RoomPage({ params, searchParams }: { params: any, search
 
           {/* BANKRUPT OPPONENT OPTION PROMPT */}
           {isOpponentBankrupt ? (
-            <div className="mt-8 flex flex-col items-center bg-purple-950/80 backdrop-blur-md p-6 rounded-3xl border-2 border-purple-500 shadow-2xl w-full max-w-[480px]">
+            <div className="mt-6 flex flex-col items-center bg-purple-950/80 backdrop-blur-md p-6 rounded-3xl border-2 border-purple-500 shadow-2xl w-full max-w-[440px]">
               <span className="text-xs font-black text-purple-300 uppercase tracking-widest mb-1 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-400" /> المنافس لا يملك ميزانية!
               </span>
-              <h3 className="text-lg font-black text-white text-center mb-4">اختر المبلغ الذي تود خصمه من ميزانيتك للاستحواذ:</h3>
+              <h3 className="text-sm font-black text-white text-center mb-4">اختر المبلغ الذي تود خصمه من ميزانيتك للاستحواذ:</h3>
 
               {/* Budget selector buttons */}
               <div className="grid grid-cols-4 gap-2 mb-4 w-full">
@@ -1349,97 +1688,120 @@ export default function RoomPage({ params, searchParams }: { params: any, search
                   onClick={() => handleBankruptAction('keep_player')}
                   className="flex-1 bg-gradient-to-r from-[#00F0FF] to-[#0052FF] text-white py-3 rounded-xl font-black text-xs shadow-lg uppercase"
                 >
-                  أخذ {activePlayer?.name.split(' ').pop()} بالسعر ({bankruptPrice / 1000000}M)
+                  أخذ {activePlayer ? getFamousPlayerName(activePlayer.name) : ''} ({bankruptPrice / 1000000}M)
                 </button>
                 <button 
                   onClick={() => handleBankruptAction('random_player')}
                   className="flex-1 bg-gradient-to-r from-amber-500 to-yellow-600 text-black py-3 rounded-xl font-black text-xs shadow-lg uppercase flex items-center justify-center gap-1"
                 >
-                  <Shuffle className="w-4 h-4" /> أخذ لاعب عشوائي ({bankruptPrice / 1000000}M)
+                  <Shuffle className="w-4 h-4" /> لاعب عشوائي ({bankruptPrice / 1000000}M)
                 </button>
               </div>
             </div>
           ) : (
-            /* INITIAL BID & ACTIVE BID CONTROLS */
-            <div className="mt-8 flex flex-col items-center bg-black/50 backdrop-blur-md px-8 py-5 rounded-3xl border border-white/10 shadow-2xl w-full max-w-[440px]">
+            /* REALISTIC EA FC BIDDING CONTROLS PANEL */
+            <div className="mt-6 flex flex-col items-center bg-black/80 backdrop-blur-md px-6 py-5 rounded-3xl border border-[#FFD700]/30 shadow-2xl w-full max-w-[440px]">
               {gameState.waiting_initial_bid ? (
                 <div className="text-center w-full">
-                  <span className="text-xs font-bold text-[#00F0FF] uppercase tracking-widest mb-1 block animate-pulse">Set Starting Bid</span>
+                  <span className="text-xs font-bold text-[#FFD700] uppercase tracking-widest mb-1 block animate-pulse">المزاد السري الأولي (Starting Price)</span>
                   {gameState.turn_manager_id === 'you' ? (
                     <div>
-                      <h3 className="text-lg font-black text-white mb-3">It's your turn! Pick or enter opening price:</h3>
+                      <h3 className="text-sm font-black text-white mb-3">دورك لافتتاح المزاد! حدد سعر البدء:</h3>
                       
-                      {/* Quick Preset Buttons */}
                       <div className="grid grid-cols-4 gap-2 mb-4">
                         {[1000000, 5000000, 10000000, 20000000].map(val => (
                           <button 
                             key={val} 
-                            onClick={() => handleSetInitialBid(val)}
-                            className="bg-white/10 hover:bg-[#00F0FF] hover:text-black py-2 rounded-xl font-black text-xs transition border border-white/10"
+                            onClick={() => handleSetInitialBid(val, 'you')}
+                            className="bg-amber-500/20 hover:bg-[#FFD700] hover:text-black text-amber-300 py-2 rounded-xl font-black text-xs transition border border-amber-500/30"
                           >
                             {val / 1000000}M €
                           </button>
                         ))}
                       </div>
 
-                      <form onSubmit={(e) => { e.preventDefault(); handleSetInitialBid(); }} className="flex gap-2 w-full">
+                      <form onSubmit={(e) => { e.preventDefault(); handleSetInitialBid(undefined, 'you'); }} className="flex gap-2 w-full">
                         <input 
                           type="text" 
-                          placeholder="Custom (e.g., 15M, 5M)..." 
+                          placeholder="مثال: 5M أو 15,000,000..." 
                           value={customBid} 
                           onChange={(e) => setCustomBid(e.target.value)} 
-                          className="w-full bg-black/60 border border-white/20 rounded-xl px-4 py-2.5 text-white font-bold text-sm focus:outline-none focus:border-[#00F0FF]" 
+                          className="w-full bg-black/80 border border-white/20 rounded-xl px-4 py-2.5 text-white font-bold text-sm focus:outline-none focus:border-[#FFD700]" 
                         />
-                        <button type="submit" className="bg-gradient-to-r from-[#FFD700] to-[#FDB931] text-black px-5 py-2.5 rounded-xl font-black shadow-[0_0_15px_rgba(255,215,0,0.4)] text-xs whitespace-nowrap">
-                          SET START
+                        <button type="submit" className="bg-gradient-to-r from-[#B8860B] via-[#FFD700] to-[#B8860B] text-black px-5 py-2.5 rounded-xl font-black text-xs whitespace-nowrap shadow-lg hover:scale-105 transition">
+                          افتتاح المزاد ⚽
                         </button>
                       </form>
                     </div>
                   ) : (
-                    <div className="text-md font-bold text-zinc-300 py-3">
-                      Waiting for opponent ({managers.find(m => m.id === gameState.turn_manager_id)?.name}) to set opening price...
+                    <div className="text-sm font-bold text-zinc-300 py-3">
+                      بانتظار المنافس ({managers.find(m => m.id === gameState.turn_manager_id)?.name}) لافتتاح المزاد...
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="w-full text-center">
-                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1 block">Current Highest Bid</span>
-                  <div className={`text-4xl font-black mb-2 neon-text ${gameState.winning_manager_id === 'you' ? 'text-[#00F0FF]' : 'text-rose-400'}`}>
+                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1 block">أعلى مزايدة حية حالياً</span>
+                  <div className={`text-4xl font-black mb-3 ${gameState.winning_manager_id === 'you' ? 'text-[#FFD700]' : 'text-rose-400'}`}>
                     {formatMoney(gameState.current_bid)}
                   </div>
 
+                  {/* BID STATUS BANNER */}
                   {gameState.winning_manager_id !== 'you' && gameState.winning_manager_id ? (
-                    <div className="animate-pulse text-xs font-black text-rose-400 bg-rose-500/20 border border-rose-500/40 px-4 py-1.5 rounded-full mb-4 inline-flex items-center gap-1.5">
+                    <div className="animate-pulse text-xs font-black text-rose-300 bg-rose-500/20 border border-rose-500/40 px-4 py-1.5 rounded-full mb-4 inline-flex items-center gap-1.5">
                       <span>⚡</span>
-                      <span>المنافس ({managers.find(m => m.id === gameState.winning_manager_id)?.name}) زايد وسرق الصدارة!</span>
+                      <span>المنافس ({managers.find(m => m.id === gameState.winning_manager_id)?.name}) يتقدم بالمزاد!</span>
                     </div>
                   ) : gameState.winning_manager_id === 'you' ? (
                     <div className="text-xs font-black text-emerald-400 bg-emerald-500/20 border border-emerald-500/40 px-4 py-1.5 rounded-full mb-4 inline-flex items-center gap-1.5">
-                      <span>✅</span>
+                      <span>🏆</span>
                       <span>أنت متصدر المزاد حالياً!</span>
                     </div>
                   ) : (
                     <div className="text-xs font-black text-zinc-400 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full mb-4 inline-flex items-center gap-1.5">
                       <span>⏳</span>
-                      <span>بانتظار بدء المزايدة...</span>
+                      <span>بانتظار المزايدة...</span>
                     </div>
                   )}
 
-                  <div className="flex gap-3 mb-3 w-full">
-                    <button onClick={() => handleBid(gameState.current_bid + 1000000)} className="flex-1 glass-panel py-3 rounded-xl font-black text-white hover:bg-white/20 transition text-sm">+ 1M €</button>
-                    <button onClick={() => handleBid(gameState.current_bid + 5000000)} className="flex-1 glass-panel py-3 rounded-xl font-black text-white hover:bg-white/20 transition text-sm">+ 5M €</button>
+                  {/* FAST PRESET BID BUTTONS */}
+                  <div className="grid grid-cols-3 gap-2 mb-3 w-full">
+                    <button onClick={() => handleBid(gameState.current_bid + 1000000, 'you')} className="bg-white/10 hover:bg-amber-500/30 hover:border-[#FFD700] py-2.5 rounded-xl font-black text-white border border-white/10 transition text-xs">
+                      +1M 🪙
+                    </button>
+                    <button onClick={() => handleBid(gameState.current_bid + 5000000, 'you')} className="bg-white/10 hover:bg-amber-500/30 hover:border-[#FFD700] py-2.5 rounded-xl font-black text-white border border-white/10 transition text-xs">
+                      +5M 🪙
+                    </button>
+                    <button onClick={() => handleBid(gameState.current_bid + 10000000, 'you')} className="bg-white/10 hover:bg-amber-500/30 hover:border-[#FFD700] py-2.5 rounded-xl font-black text-white border border-white/10 transition text-xs">
+                      +10M 🪙
+                    </button>
                   </div>
 
-                  <form onSubmit={handleCustomBidSubmit} className="flex gap-2 w-full">
+                  {/* FOR LOCAL MULTIPLAYER PASS & PLAY: SHOW PLAYER 2 BID BUTTON TOO */}
+                  {modeParam === 'local_friend' && managers[1] && (
+                    <div className="mb-3 p-2 bg-blue-950/40 border border-blue-500/30 rounded-2xl flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-blue-300">مزايدة {managers[1].name}:</span>
+                      <div className="flex gap-1">
+                        <button onClick={() => handleBid(gameState.current_bid + 1000000, managers[1].id)} className="bg-blue-600/30 hover:bg-blue-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black border border-blue-400/40">
+                          +1M (P2)
+                        </button>
+                        <button onClick={() => handleBid(gameState.current_bid + 5000000, managers[1].id)} className="bg-blue-600/30 hover:bg-blue-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black border border-blue-400/40">
+                          +5M (P2)
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <form onSubmit={(e) => { e.preventDefault(); const amt = parseBidAmount(customBid); if(!isNaN(amt)) { handleBid(amt, 'you'); setCustomBid(""); } }} className="flex gap-2 w-full">
                     <input 
                       type="text" 
-                      placeholder="Custom bid..." 
+                      placeholder="أدخل مبلغ خاص (مثال 12M)..." 
                       value={customBid} 
                       onChange={(e) => setCustomBid(e.target.value)} 
-                      className="w-full bg-black/60 border border-white/20 rounded-xl px-4 py-2.5 text-white font-bold text-sm focus:outline-none focus:border-[#00F0FF]" 
+                      className="w-full bg-black/80 border border-white/20 rounded-xl px-4 py-2.5 text-white font-bold text-xs focus:outline-none focus:border-[#FFD700]" 
                     />
-                    <button type="submit" className="bg-gradient-to-r from-[#0052FF] to-[#00F0FF] text-white px-6 py-2.5 rounded-xl font-black text-xs whitespace-nowrap shadow-[0_0_15px_rgba(0,240,255,0.4)]">
-                      BID NOW
+                    <button type="submit" className="bg-gradient-to-r from-[#B8860B] via-[#FFD700] to-[#B8860B] text-black px-5 py-2.5 rounded-xl font-black text-xs whitespace-nowrap shadow-lg hover:scale-105 transition">
+                      زايد الآن ⚽
                     </button>
                   </form>
                 </div>
@@ -1463,7 +1825,13 @@ export default function RoomPage({ params, searchParams }: { params: any, search
                   {m.squad.length === 0 ? <span className="text-xs text-zinc-600">No players drafted</span> : m.squad.map((p, i) => (
                     <div key={i} className="flex flex-col items-center">
                       <div className="w-10 h-10 bg-black/80 border border-white/10 rounded-full flex justify-center items-end overflow-hidden relative">
-                        <img src={p.image} className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                        <img src={p.image} className="w-full h-full object-contain" onError={(e) => {
+                          const target = e.currentTarget;
+                          if (!target.dataset.fallback) {
+                            target.dataset.fallback = "true";
+                            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=0D1117&color=FFD700&bold=true&size=60`;
+                          }
+                        }} />
                         <span className="absolute bottom-0 text-[8px] bg-black/90 w-full text-center font-bold text-zinc-300">{p.rating}</span>
                       </div>
                     </div>
@@ -1522,12 +1890,18 @@ function FootballPitch({
           style={{ bottom: bottomPercent, left: leftPercent, transform: 'translate(-50%, 50%)' }}
         >
           <div className={`w-11 h-11 border-2 shadow-xl mb-1 relative flex items-end justify-center text-[8px] font-black rounded-full overflow-hidden ${isSelected ? 'border-[#00F0FF] ring-4 ring-[#00F0FF]/50 bg-black' : 'border-[#FFD700] bg-black/70'}`}>
-            <img src={player.image} alt={player.name} className="w-[120%] h-[120%] object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+            <img src={player.image} alt={player.name} className="w-[120%] h-[120%] object-contain" onError={(e) => {
+              const target = e.currentTarget;
+              if (!target.dataset.fallback) {
+                target.dataset.fallback = "true";
+                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=0D1117&color=FFD700&bold=true&size=80`;
+              }
+            }} />
             <div className="absolute bottom-0 w-full text-center text-[8px] font-bold text-white bg-black/80">{player.rating}</div>
           </div>
           
           <div className="flex items-center gap-1 bg-black/90 px-2 py-0.5 rounded-full border border-white/20 shadow-md">
-            <span className="text-[9px] font-black text-white truncate max-w-[55px]">{player.name.split(' ').pop()}</span>
+            <span className="text-[9px] font-black text-white truncate max-w-[65px]">{getFamousPlayerName(player.name)}</span>
             {onOpenPositionEdit && (
               <button 
                 onClick={(e) => { e.stopPropagation(); onOpenPositionEdit(index); }}
@@ -1745,21 +2119,21 @@ function MatchSimulator({ me, bot, formation, botDifficulty = 'medium', onClose 
     // Goals
     for (let i = 0; i < myGoals; i++) {
       const scorer = scorersMe[Math.floor(Math.random() * scorersMe.length)] || me.squad[0];
-      myEvents.push({ minute: allMinutes[i], type: 'goal', player: scorer?.name ? (scorer.name.split(' ').length > 1 ? `${scorer.name.split(' ')[0][0]}. ${scorer.name.split(' ').slice(1).join(' ')}`.toUpperCase() : scorer.name.toUpperCase()) : 'PLAYER' });
+      myEvents.push({ minute: allMinutes[i], type: 'goal', player: scorer?.name ? getFamousPlayerName(scorer.name).toUpperCase() : 'PLAYER' });
     }
     for (let i = 0; i < botGoals; i++) {
       const scorer = scorersBot[Math.floor(Math.random() * scorersBot.length)] || bot.squad[0];
-      botEvents.push({ minute: allMinutes[myGoals + i], type: 'goal', player: scorer?.name ? (scorer.name.split(' ').length > 1 ? `${scorer.name.split(' ')[0][0]}. ${scorer.name.split(' ').slice(1).join(' ')}`.toUpperCase() : scorer.name.toUpperCase()) : 'PLAYER' });
+      botEvents.push({ minute: allMinutes[myGoals + i], type: 'goal', player: scorer?.name ? getFamousPlayerName(scorer.name).toUpperCase() : 'PLAYER' });
     }
 
     // Yellow cards
     for (let i = 0; i < myYellow; i++) {
       const p = me.squad[Math.floor(Math.random() * me.squad.length)];
-      if (p) myEvents.push({ minute: Math.floor(Math.random() * 80) + 10, type: 'yellow', player: p.name.split(' ').pop()?.toUpperCase() || 'PLAYER' });
+      if (p) myEvents.push({ minute: Math.floor(Math.random() * 80) + 10, type: 'yellow', player: getFamousPlayerName(p.name).toUpperCase() });
     }
     for (let i = 0; i < botYellow; i++) {
       const p = bot.squad[Math.floor(Math.random() * bot.squad.length)];
-      if (p) botEvents.push({ minute: Math.floor(Math.random() * 80) + 10, type: 'yellow', player: p.name.split(' ').pop()?.toUpperCase() || 'PLAYER' });
+      if (p) botEvents.push({ minute: Math.floor(Math.random() * 80) + 10, type: 'yellow', player: getFamousPlayerName(p.name).toUpperCase() });
     }
 
     // Red cards (25% chance)
@@ -1768,12 +2142,12 @@ function MatchSimulator({ me, bot, formation, botDifficulty = 'medium', onClose 
     if (Math.random() < 0.25) {
       myRed = 1;
       const p = defMe[Math.floor(Math.random() * defMe.length)] || me.squad[0];
-      if (p) myEvents.push({ minute: Math.floor(Math.random() * 35) + 55, type: 'red', player: p.name.split(' ').pop()?.toUpperCase() || 'PLAYER' });
+      if (p) myEvents.push({ minute: Math.floor(Math.random() * 35) + 55, type: 'red', player: getFamousPlayerName(p.name).toUpperCase() });
     }
     if (Math.random() < 0.25) {
       botRed = 1;
       const p = defBot[Math.floor(Math.random() * defBot.length)] || bot.squad[0];
-      if (p) botEvents.push({ minute: Math.floor(Math.random() * 35) + 55, type: 'red', player: p.name.split(' ').pop()?.toUpperCase() || 'PLAYER' });
+      if (p) botEvents.push({ minute: Math.floor(Math.random() * 35) + 55, type: 'red', player: getFamousPlayerName(p.name).toUpperCase() });
     }
 
     myEvents.sort((a, b) => a.minute - b.minute);
@@ -2017,7 +2391,13 @@ function MatchSimulator({ me, bot, formation, botDifficulty = 'medium', onClose 
         {motm && (
           <div className="w-full bg-gradient-to-r from-[#FFD700]/10 via-[#0d1525] to-[#FFD700]/10 border border-[#FFD700]/20 rounded-2xl p-5 mb-6 flex items-center gap-5">
             <div className="w-16 h-16 rounded-xl bg-black/60 border-2 border-[#FFD700]/40 flex items-end justify-center overflow-hidden">
-              <img src={motm.image} className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              <img src={motm.image} className="w-full h-full object-contain" onError={(e) => {
+                const target = e.currentTarget;
+                if (!target.dataset.fallback) {
+                  target.dataset.fallback = "true";
+                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(motm.name)}&background=0D1117&color=FFD700&bold=true&size=100`;
+                }
+              }} />
             </div>
             <div>
               <span className="text-[10px] font-black text-[#FFD700] uppercase tracking-[0.2em] block">★ Man of the Match</span>

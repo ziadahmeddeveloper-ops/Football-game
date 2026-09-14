@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { Users, Settings, Play, Shield, Plus, Search, ArrowLeft, Trophy } from "lucide-react";
+import { Users, Settings, Play, Shield, Plus, Search, ArrowLeft, Trophy, UserCheck, Smartphone, Globe } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -14,7 +14,8 @@ export default function LobbyPage() {
   const [budget, setBudget] = useState("100000000");
   const [squadSize, setSquadSize] = useState("11");
   const [botDiff, setBotDiff] = useState("medium");
-  const [maxPlayers, setMaxPlayers] = useState("4");
+  const [maxPlayers, setMaxPlayers] = useState("2");
+  const [opponentType, setOpponentType] = useState<'bot' | 'local_friend' | 'online_friend'>('local_friend');
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -24,11 +25,10 @@ export default function LobbyPage() {
     }
   }, []);
 
-
   const handleCreateRoom = (e: React.FormEvent) => {
     e.preventDefault();
     const fakeCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    router.push(`/room/${fakeCode}?budget=${budget}&size=${squadSize}&diff=${botDiff}&max=${maxPlayers}`);
+    router.push(`/room/${fakeCode}?budget=${budget}&size=${squadSize}&diff=${botDiff}&max=${maxPlayers}&mode=${opponentType}`);
   };
 
   const handleJoinRoom = (e: React.FormEvent) => {
@@ -43,16 +43,16 @@ export default function LobbyPage() {
       {/* Responsive Header Navigation */}
       <div className="w-full max-w-xl flex justify-between items-center mb-6 z-20 gap-2">
         <Link href="/" className="text-zinc-400 hover:text-white transition flex items-center gap-1.5 font-bold uppercase tracking-widest bg-white/5 px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl hover:bg-white/10 border border-white/5 text-xs sm:text-sm">
-          <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" /> Home
+          <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" /> الرئيسية
         </Link>
 
         <div className="flex items-center gap-2">
           <Link href="/leaderboard" className="text-[#FFD700] hover:text-white transition flex items-center gap-1.5 font-bold uppercase tracking-widest bg-[#FFD700]/10 px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl hover:bg-[#FFD700]/20 border border-[#FFD700]/20 text-xs sm:text-sm">
-            <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-[#FFD700]" /> Leaderboard
+            <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-[#FFD700]" /> المتصدرين
           </Link>
 
           <Link href="/profile" className="text-[#00F0FF] hover:text-white transition flex items-center gap-1.5 font-bold uppercase tracking-widest bg-[#00F0FF]/10 px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl hover:bg-[#00F0FF]/20 border border-[#00F0FF]/20 text-xs sm:text-sm">
-            <Users className="w-4 h-4 sm:w-5 sm:h-5" /> Profile
+            <Users className="w-4 h-4 sm:w-5 sm:h-5" /> الملف الشخصي
           </Link>
         </div>
       </div>
@@ -67,106 +67,127 @@ export default function LobbyPage() {
             onClick={() => setActiveTab('create')}
             className={`flex-1 py-3 text-center rounded-xl font-bold transition ${activeTab === 'create' ? 'bg-[#00F0FF] text-black shadow-[0_0_20px_rgba(0,240,255,0.3)]' : 'bg-white/5 text-zinc-400 hover:text-white'}`}
           >
-            Create Match
+            إنشاء مباراة جديد
           </button>
           <button 
             onClick={() => setActiveTab('join')}
             className={`flex-1 py-3 text-center rounded-xl font-bold transition ${activeTab === 'join' ? 'bg-[#00F0FF] text-black shadow-[0_0_20px_rgba(0,240,255,0.3)]' : 'bg-white/5 text-zinc-400 hover:text-white'}`}
           >
-            Join Match
+            دخول غرفة بدعوة
           </button>
         </div>
 
         {activeTab === 'create' ? (
           <form onSubmit={handleCreateRoom} className="space-y-6">
+            
+            {/* Opponent Selection (Bot vs Local Friend vs Online Friend) */}
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-zinc-200 flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-[#00F0FF]" /> اختر المنافس (Game Mode)
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOpponentType('local_friend')}
+                  className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition text-center ${opponentType === 'local_friend' ? 'bg-[#00F0FF]/20 border-[#00F0FF] text-white' : 'bg-black/40 border-white/10 text-zinc-400 hover:border-white/20'}`}
+                >
+                  <Smartphone className="w-5 h-5 text-[#00F0FF]" />
+                  <span className="text-xs font-bold">صديق (نفس الجهاز)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setOpponentType('online_friend')}
+                  className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition text-center ${opponentType === 'online_friend' ? 'bg-[#FFD700]/20 border-[#FFD700] text-white' : 'bg-black/40 border-white/10 text-zinc-400 hover:border-white/20'}`}
+                >
+                  <Globe className="w-5 h-5 text-[#FFD700]" />
+                  <span className="text-xs font-bold">صديق (أونلاين)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setOpponentType('bot')}
+                  className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition text-center ${opponentType === 'bot' ? 'bg-[#0052FF]/20 border-[#0052FF] text-white' : 'bg-black/40 border-white/10 text-zinc-400 hover:border-white/20'}`}
+                >
+                  <Shield className="w-5 h-5 text-[#0052FF]" />
+                  <span className="text-xs font-bold">كمبيوتر (AI)</span>
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-bold text-zinc-300 flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#00F0FF]" /> Match Budget
+                <Users className="w-4 h-4 text-[#00F0FF]" /> ميزانية المزاد (Budget)
               </label>
               <select 
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
                 className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00F0FF] transition appearance-none"
               >
-                <option value="50000000">50,000,000 (Hardcore)</option>
-                <option value="100000000">100,000,000 (Standard)</option>
-                <option value="150000000">150,000,000 (Relaxed)</option>
-                <option value="300000000">300,000,000 (Legends Only)</option>
-              </select>
-            </div>
-
-
-
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-zinc-300 flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#00F0FF]" /> Max Players
-              </label>
-              <select 
-                value={maxPlayers}
-                onChange={(e) => setMaxPlayers(e.target.value)}
-                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00F0FF] transition appearance-none"
-              >
-                <option value="2">2 Players (1v1)</option>
-                <option value="4">4 Players</option>
-                <option value="8">8 Players</option>
+                <option value="50000000">50,000,000 (صعبة للغاية)</option>
+                <option value="100000000">100,000,000 (قياسي Standard)</option>
+                <option value="150000000">150,000,000 (مريحة)</option>
+                <option value="300000000">300,000,000 (نجوم وأساطير)</option>
               </select>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-bold text-zinc-300 flex items-center gap-2">
-                <Settings className="w-4 h-4 text-[#00F0FF]" /> Squad Size
+                <Settings className="w-4 h-4 text-[#00F0FF]" /> عدد لاعبي التشكيلة
               </label>
               <select 
                 value={squadSize}
                 onChange={(e) => setSquadSize(e.target.value)}
                 className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00F0FF] transition appearance-none"
               >
-                <option value="4">4-a-side (Mini)</option>
-                <option value="5">5-a-side (Fast)</option>
-                <option value="7">7-a-side</option>
-                <option value="11">11-a-side (Full Squad)</option>
+                <option value="4">4 لاعبين (مصغرة)</option>
+                <option value="5">5 لاعبين (خماسي سريع)</option>
+                <option value="7">7 لاعبين (سباعي)</option>
+                <option value="11">11 لاعب (تشكيلة كاملة)</option>
               </select>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-zinc-300 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-[#00F0FF]" /> AI Bot Difficulty
-              </label>
-              <div className="grid grid-cols-4 gap-2">
-                {['easy', 'medium', 'hard', 'legendary'].map(diff => (
-                  <button
-                    key={diff}
-                    type="button"
-                    onClick={() => setBotDiff(diff)}
-                    className={`py-2 text-xs font-bold uppercase rounded-lg border transition ${botDiff === diff ? 'bg-[#0052FF] border-[#0052FF] text-white' : 'bg-transparent border-white/10 text-zinc-400 hover:border-white/30'}`}
-                  >
-                    {diff}
-                  </button>
-                ))}
+            {opponentType === 'bot' && (
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-zinc-300 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-[#00F0FF]" /> مستوى قوة الـ AI
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {['easy', 'medium', 'hard', 'legendary'].map(diff => (
+                    <button
+                      key={diff}
+                      type="button"
+                      onClick={() => setBotDiff(diff)}
+                      className={`py-2 text-xs font-bold uppercase rounded-lg border transition ${botDiff === diff ? 'bg-[#0052FF] border-[#0052FF] text-white' : 'bg-transparent border-white/10 text-zinc-400 hover:border-white/30'}`}
+                    >
+                      {diff}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <button type="submit" className="w-full bg-gradient-to-r from-[#0052FF] to-[#00F0FF] text-white font-black text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(0,82,255,0.4)] hover:shadow-[0_0_30px_rgba(0,240,255,0.6)] transition-all flex items-center justify-center gap-2 mt-8">
               <Play className="w-5 h-5 fill-current" />
-              CREATE ARENA
+              ابدأ التحدي الآن ⚽
             </button>
           </form>
         ) : (
           <form onSubmit={handleJoinRoom} className="space-y-6">
             <div className="space-y-2">
               <label className="text-sm font-bold text-zinc-300 flex items-center gap-2">
-                <Search className="w-4 h-4 text-[#00F0FF]" /> Room Code
+                <Search className="w-4 h-4 text-[#00F0FF]" /> أدخل كود الغرفة
               </label>
               <input 
                 type="text" 
-                placeholder="e.g. X7K9MQ"
+                placeholder="مثال: X7K9MQ"
                 value={roomCode}
                 onChange={(e) => setRoomCode(e.target.value)}
                 className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-4 text-white text-center font-black text-2xl tracking-[0.5em] uppercase focus:outline-none focus:border-[#00F0FF] transition placeholder:text-zinc-600 placeholder:tracking-normal placeholder:font-medium"
               />
             </div>
             <button type="submit" className="w-full bg-white text-black font-black text-lg py-4 rounded-xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-2 mt-8">
-              JOIN ARENA
+              دخول الغرفة 🚀
             </button>
           </form>
         )}
@@ -174,3 +195,4 @@ export default function LobbyPage() {
     </div>
   );
 }
+
